@@ -7,7 +7,7 @@ Champions League, NBA) against **Pinnacle's de-vigged price and closing line**. 
 > **PAPER ONLY.** Zero real money. No wallet, no private keys, no exchange API keys, no order or
 > trading endpoints. Every venue call is a public, unauthenticated `GET`
 > (see `clv_engine/http.py`; `tests/test_sharp_report_safety.py` guards this statically). The only
-> outbound `POST`s are alerts to a webhook *you* configure. Secrets come from env vars only.
+> outbound `POST`s are alerts: Telegram `sendMessage` and/or a webhook *you* configure. Secrets come from env vars only.
 >
 > **Not financial advice.** This is a research tool that simulates bets on paper. Nothing here is a
 > recommendation to bet or trade, and past paper results say nothing about real results.
@@ -146,9 +146,34 @@ docker compose run --rm clv-engine report weekly     # -> ./data/reports/
 
 The container is non-root, read-only rootfs, drops all capabilities and keeps data in `./data` (SQLite + alerts + reports).
 
-**systemd** (no Docker): copy the repo to `/opt/clv-engine`, `useradd --system clv`, put env in `/etc/clv-engine.env`
-(chmod 600), then `cp deploy/clv-engine.service /etc/systemd/system/ && systemctl enable --now clv-engine`.
+**systemd** (no Docker): copy the repo to `/opt/clv-engine`, `useradd --system clv`, put env in
+`/etc/clv-engine/clv-engine.env` (chmod 600), then `cp deploy/clv-engine.service /etc/systemd/system/ && systemctl enable --now clv-engine`.
 Data lives in `/var/lib/clv-engine`.
+
+## Alerts
+
+Sinks: stdout and JSONL file (`ALERT_SINKS=stdout,file`), a webhook (`ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_KIND`
+slack | discord | generic) and Telegram. Webhook and Telegram turn on by themselves when their secrets are set.
+Alerts are deduped per key for `ALERT_COOLDOWN_SECONDS`. A failing sink is logged and never stops the loop.
+
+**Telegram.** Set both `TELEGRAM_BOT_TOKEN` (from @BotFather) and `TELEGRAM_CHAT_ID`; with only one set the
+sink stays off. It sends `POST https://api.telegram.org/bot<token>/sendMessage` with `chat_id` and plain `text`
+(no `parse_mode`, so nothing needs escaping), 10 s timeout, one retry on timeouts, connection errors, 429 and 5xx.
+The token is never logged: errors carry only the HTTP status and Telegram's description, with `/bot<token>` redacted.
+
+**Test delivery.** `python -m clv_engine test-alert` sends one test message through every configured sink, prints
+`ok` or `FAILED (reason)` per sink, and exits 1 if any configured sink fails. On Magno (systemd), with the same
+root-only env file the service reads:
+
+```bash
+sudo systemd-run --pipe --wait --collect -p User=clv -p WorkingDirectory=/opt/clv-engine \
+  -p EnvironmentFile=/etc/clv-engine/clv-engine.env \
+  -p Environment=ALERT_FILE=/var/lib/clv-engine/alerts.jsonl \
+  /usr/bin/python3 -m clv_engine --env-file /dev/null test-alert
+sudo systemctl restart clv-engine   # pick up new Telegram env vars
+```
+
+With Docker: `docker compose run --rm clv-engine test-alert`.
 
 Keep comments on their own lines in any env file. systemd `EnvironmentFile` (and docker `env_file`) do not strip
 inline comments, so `POLL_SECONDS=120  # note` would set the value to `120  # note`. `.env.example` follows this

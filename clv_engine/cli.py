@@ -8,7 +8,7 @@ import logging
 import sys
 from datetime import datetime, timedelta
 
-from .alerts import AlertManager, StdoutSink, make_alerts
+from .alerts import AlertManager, StdoutSink, build_sinks, make_alerts, send_test_alert
 from .arb import cross_venue, multi_outcome
 from .config import Settings
 from .engine import Engine
@@ -74,6 +74,26 @@ def cmd_scan(settings: Settings, args) -> int:
     return 0
 
 
+def cmd_test_alert(settings: Settings) -> int:
+    """One test message through every configured sink. Exit 1 if any fails, 2 on bad config."""
+    import socket
+    try:
+        sinks = build_sinks(settings, strict=True)
+    except ValueError as exc:
+        print(f"alert config error: {exc}", file=sys.stderr)
+        return 2
+    text = (f"PAPER clv-engine test alert from {socket.gethostname()} at {utc_now():%Y-%m-%d %H:%M} UTC. "
+            "Delivery check only: no entries, no orders, no real money.")
+    results = send_test_alert(sinks, text)
+    for name, err in results.items():
+        print(f"{name}: {'ok' if err is None else 'FAILED (' + err + ')'}")
+    if not results:
+        print("note: no sinks configured (ALERT_SINKS is empty and no webhook/Telegram secrets set)")
+    elif not any(n in results for n in ("webhook", "telegram")):
+        print("note: no remote sink configured (set ALERT_WEBHOOK_URL or TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)")
+    return 1 if any(err is not None for err in results.values()) else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="clv_engine", description="PAPER-ONLY odds/CLV tracker (read-only market data).")
     ap.add_argument("--env-file", default=".env")
@@ -90,6 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     rep.add_argument("--out", default=None, help="weekly: output dir (default REPORT_DIR)")
     sub.add_parser("settle", help="finalize CLV and settle finished games")
     sub.add_parser("init-db", help="create the SQLite schema")
+    sub.add_parser("test-alert", help="send one test message through every configured sink; exit 1 if one fails")
     args = ap.parse_args(argv)
 
     settings = Settings.from_env(args.env_file)
@@ -97,6 +118,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "scan":
         return cmd_scan(settings, args)
+    if args.cmd == "test-alert":
+        return cmd_test_alert(settings)
     ledger = Ledger(settings.db_path)
     if args.cmd == "init-db":
         print(f"ledger ready at {settings.db_path}")
