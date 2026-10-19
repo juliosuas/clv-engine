@@ -8,6 +8,9 @@ Champions League, NBA) against **Pinnacle's de-vigged price and closing line**. 
 > trading endpoints. Every venue call is a public, unauthenticated `GET`
 > (see `clv_engine/http.py`; `tests/test_sharp_report_safety.py` guards this statically). The only
 > outbound `POST`s are alerts to a webhook *you* configure. Secrets come from env vars only.
+>
+> **Not financial advice.** This is a research tool that simulates bets on paper. Nothing here is a
+> recommendation to bet or trade, and past paper results say nothing about real results.
 
 ## What it does each cycle (default every 120 s)
 
