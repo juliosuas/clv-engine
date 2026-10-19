@@ -1,0 +1,737 @@
+{
+  "_comment": "canonical_id -> aliases. Names are normalized (accents stripped, lowercase, filler tokens like fc/cf/club removed) before lookup, so list the distinctive forms only. Add new aliases here when the engine logs an unmatched team.",
+  "ligamx": {
+    "america": [
+      "america",
+      "club america",
+      "cf america",
+      "aguilas",
+      "ame"
+    ],
+    "atlas": [
+      "atlas",
+      "atlas fc",
+      "atl"
+    ],
+    "atletico-san-luis": [
+      "atletico san luis",
+      "san luis",
+      "atl san luis",
+      "asl",
+      "slu"
+    ],
+    "cruz-azul": [
+      "cruz azul",
+      "caz"
+    ],
+    "guadalajara": [
+      "guadalajara",
+      "chivas",
+      "chivas guadalajara",
+      "cd guadalajara",
+      "cdg",
+      "gua"
+    ],
+    "juarez": [
+      "juarez",
+      "fc juarez",
+      "bravos",
+      "jua"
+    ],
+    "leon": [
+      "leon",
+      "club leon",
+      "leo"
+    ],
+    "mazatlan": [
+      "mazatlan",
+      "mazatlan fc",
+      "maz"
+    ],
+    "atlante": [
+      "atlante",
+      "atlante fc"
+    ],
+    "monterrey": [
+      "monterrey",
+      "cf monterrey",
+      "rayados",
+      "mty",
+      "mon"
+    ],
+    "necaxa": [
+      "necaxa",
+      "club necaxa",
+      "ncx",
+      "nec"
+    ],
+    "pachuca": [
+      "pachuca",
+      "cf pachuca",
+      "tuzos",
+      "pac"
+    ],
+    "puebla": [
+      "puebla",
+      "club puebla",
+      "pue"
+    ],
+    "pumas": [
+      "pumas",
+      "pumas unam",
+      "unam",
+      "unam pumas",
+      "club universidad nacional",
+      "pum"
+    ],
+    "queretaro": [
+      "queretaro",
+      "queretaro fc",
+      "gallos blancos",
+      "que",
+      "qro"
+    ],
+    "santos-laguna": [
+      "santos laguna",
+      "santos",
+      "club santos laguna",
+      "san",
+      "sanl"
+    ],
+    "tigres": [
+      "tigres",
+      "tigres uanl",
+      "uanl",
+      "uanl tigres",
+      "tig"
+    ],
+    "tijuana": [
+      "tijuana",
+      "club tijuana",
+      "xolos",
+      "tij"
+    ],
+    "toluca": [
+      "toluca",
+      "deportivo toluca",
+      "tol"
+    ]
+  },
+  "epl": {
+    "arsenal": [
+      "arsenal"
+    ],
+    "aston-villa": [
+      "aston villa",
+      "villa"
+    ],
+    "bournemouth": [
+      "bournemouth",
+      "afc bournemouth"
+    ],
+    "brentford": [
+      "brentford"
+    ],
+    "brighton": [
+      "brighton",
+      "brighton and hove albion",
+      "brighton hove albion"
+    ],
+    "burnley": [
+      "burnley"
+    ],
+    "chelsea": [
+      "chelsea"
+    ],
+    "coventry": [
+      "coventry",
+      "coventry city"
+    ],
+    "crystal-palace": [
+      "crystal palace",
+      "palace"
+    ],
+    "everton": [
+      "everton"
+    ],
+    "fulham": [
+      "fulham"
+    ],
+    "ipswich": [
+      "ipswich",
+      "ipswich town"
+    ],
+    "leeds": [
+      "leeds",
+      "leeds united"
+    ],
+    "leicester": [
+      "leicester",
+      "leicester city"
+    ],
+    "liverpool": [
+      "liverpool"
+    ],
+    "man-city": [
+      "manchester city",
+      "man city"
+    ],
+    "man-united": [
+      "manchester united",
+      "man united",
+      "man utd"
+    ],
+    "newcastle": [
+      "newcastle",
+      "newcastle united"
+    ],
+    "nottingham-forest": [
+      "nottingham forest",
+      "nottm forest",
+      "forest",
+      "nottingham"
+    ],
+    "sheffield-united": [
+      "sheffield united",
+      "sheffield utd"
+    ],
+    "southampton": [
+      "southampton"
+    ],
+    "sunderland": [
+      "sunderland"
+    ],
+    "tottenham": [
+      "tottenham",
+      "tottenham hotspur",
+      "spurs"
+    ],
+    "west-ham": [
+      "west ham",
+      "west ham united"
+    ],
+    "wolves": [
+      "wolves",
+      "wolverhampton",
+      "wolverhampton wanderers"
+    ]
+  },
+  "laliga": {
+    "alaves": [
+      "alaves",
+      "deportivo alaves"
+    ],
+    "athletic-bilbao": [
+      "athletic bilbao",
+      "athletic club",
+      "athletic",
+      "bilbao"
+    ],
+    "atletico-madrid": [
+      "atletico madrid",
+      "atletico de madrid",
+      "atletico",
+      "atl madrid"
+    ],
+    "barcelona": [
+      "barcelona",
+      "barca"
+    ],
+    "betis": [
+      "real betis",
+      "betis"
+    ],
+    "celta-vigo": [
+      "celta vigo",
+      "celta",
+      "rc celta"
+    ],
+    "elche": [
+      "elche"
+    ],
+    "espanyol": [
+      "espanyol",
+      "rcd espanyol"
+    ],
+    "getafe": [
+      "getafe"
+    ],
+    "girona": [
+      "girona"
+    ],
+    "levante": [
+      "levante"
+    ],
+    "mallorca": [
+      "mallorca",
+      "rcd mallorca"
+    ],
+    "osasuna": [
+      "osasuna",
+      "ca osasuna"
+    ],
+    "oviedo": [
+      "real oviedo",
+      "oviedo"
+    ],
+    "rayo-vallecano": [
+      "rayo vallecano",
+      "vallecano",
+      "rayo"
+    ],
+    "real-madrid": [
+      "real madrid",
+      "madrid"
+    ],
+    "real-sociedad": [
+      "real sociedad",
+      "sociedad"
+    ],
+    "sevilla": [
+      "sevilla",
+      "seville"
+    ],
+    "valencia": [
+      "valencia"
+    ],
+    "villarreal": [
+      "villarreal"
+    ],
+    "racing-santander": [
+      "racing santander",
+      "real racing club",
+      "santander",
+      "racing de santander"
+    ],
+    "malaga": [
+      "malaga",
+      "malaga cf"
+    ],
+    "deportivo-la-coruna": [
+      "deportivo la coruna",
+      "deportivo a coruna",
+      "rc deportivo",
+      "la coruna",
+      "a coruna",
+      "deportivo"
+    ]
+  },
+  "ucl": {
+    "real-madrid": [
+      "real madrid"
+    ],
+    "barcelona": [
+      "barcelona",
+      "barca"
+    ],
+    "atletico-madrid": [
+      "atletico madrid",
+      "atletico de madrid"
+    ],
+    "athletic-bilbao": [
+      "athletic bilbao",
+      "athletic club"
+    ],
+    "villarreal": [
+      "villarreal"
+    ],
+    "man-city": [
+      "manchester city",
+      "man city"
+    ],
+    "man-united": [
+      "manchester united",
+      "man united"
+    ],
+    "arsenal": [
+      "arsenal"
+    ],
+    "liverpool": [
+      "liverpool"
+    ],
+    "chelsea": [
+      "chelsea"
+    ],
+    "tottenham": [
+      "tottenham",
+      "tottenham hotspur",
+      "spurs"
+    ],
+    "newcastle": [
+      "newcastle",
+      "newcastle united"
+    ],
+    "aston-villa": [
+      "aston villa"
+    ],
+    "bayern": [
+      "bayern munich",
+      "bayern",
+      "bayern munchen",
+      "fc bayern"
+    ],
+    "dortmund": [
+      "borussia dortmund",
+      "dortmund",
+      "bvb"
+    ],
+    "leverkusen": [
+      "bayer leverkusen",
+      "leverkusen"
+    ],
+    "leipzig": [
+      "rb leipzig",
+      "leipzig"
+    ],
+    "frankfurt": [
+      "eintracht frankfurt",
+      "frankfurt"
+    ],
+    "stuttgart": [
+      "vfb stuttgart",
+      "stuttgart"
+    ],
+    "psg": [
+      "paris saint germain",
+      "paris saint-germain",
+      "psg",
+      "paris sg"
+    ],
+    "monaco": [
+      "monaco",
+      "as monaco"
+    ],
+    "marseille": [
+      "marseille",
+      "olympique marseille"
+    ],
+    "lille": [
+      "lille",
+      "losc lille"
+    ],
+    "inter": [
+      "inter milan",
+      "inter",
+      "internazionale"
+    ],
+    "milan": [
+      "ac milan",
+      "milan"
+    ],
+    "juventus": [
+      "juventus",
+      "juve"
+    ],
+    "napoli": [
+      "napoli",
+      "ssc napoli"
+    ],
+    "atalanta": [
+      "atalanta"
+    ],
+    "benfica": [
+      "benfica",
+      "sl benfica"
+    ],
+    "porto": [
+      "porto",
+      "fc porto"
+    ],
+    "sporting": [
+      "sporting cp",
+      "sporting lisbon",
+      "sporting"
+    ],
+    "psv": [
+      "psv eindhoven",
+      "psv"
+    ],
+    "ajax": [
+      "ajax",
+      "ajax amsterdam"
+    ],
+    "feyenoord": [
+      "feyenoord"
+    ],
+    "club-brugge": [
+      "club brugge",
+      "brugge",
+      "club brugge kv"
+    ],
+    "celtic": [
+      "celtic"
+    ],
+    "galatasaray": [
+      "galatasaray"
+    ],
+    "fenerbahce": [
+      "fenerbahce"
+    ],
+    "slavia-prague": [
+      "slavia prague",
+      "slavia praha",
+      "slavia"
+    ],
+    "copenhagen": [
+      "fc copenhagen",
+      "copenhagen",
+      "kobenhavn"
+    ],
+    "olympiacos": [
+      "olympiacos",
+      "olympiakos"
+    ],
+    "qarabag": [
+      "qarabag"
+    ],
+    "bodo-glimt": [
+      "bodo glimt",
+      "bodoe glimt",
+      "bodo/glimt",
+      "fk bodo glimt"
+    ],
+    "pafos": [
+      "pafos"
+    ],
+    "kairat": [
+      "kairat",
+      "kairat almaty"
+    ],
+    "union-sg": [
+      "union saint gilloise",
+      "union sg",
+      "union st gilloise"
+    ],
+    "lens": [
+      "lens",
+      "rc lens",
+      "racing lens",
+      "racing club de lens"
+    ],
+    "shakhtar": [
+      "shakhtar donetsk",
+      "shakhtar"
+    ],
+    "roma": [
+      "as roma",
+      "roma"
+    ],
+    "como": [
+      "como",
+      "como 1907"
+    ],
+    "aek": [
+      "aek",
+      "aek athens"
+    ],
+    "slovan-bratislava": [
+      "slovan bratislava",
+      "slovan"
+    ],
+    "sabah": [
+      "sabah",
+      "sabah fk"
+    ],
+    "viking": [
+      "viking",
+      "viking fk"
+    ],
+    "lask": [
+      "lask",
+      "lask linz"
+    ],
+    "betis": [
+      "real betis",
+      "betis"
+    ]
+  },
+  "nba": {
+    "atl": [
+      "atlanta hawks",
+      "hawks",
+      "atlanta",
+      "atl"
+    ],
+    "bos": [
+      "boston celtics",
+      "celtics",
+      "boston",
+      "bos"
+    ],
+    "bkn": [
+      "brooklyn nets",
+      "nets",
+      "brooklyn",
+      "bkn"
+    ],
+    "cha": [
+      "charlotte hornets",
+      "hornets",
+      "charlotte",
+      "cha"
+    ],
+    "chi": [
+      "chicago bulls",
+      "bulls",
+      "chicago",
+      "chi"
+    ],
+    "cle": [
+      "cleveland cavaliers",
+      "cavaliers",
+      "cavs",
+      "cleveland",
+      "cle"
+    ],
+    "dal": [
+      "dallas mavericks",
+      "mavericks",
+      "mavs",
+      "dallas",
+      "dal"
+    ],
+    "den": [
+      "denver nuggets",
+      "nuggets",
+      "denver",
+      "den"
+    ],
+    "det": [
+      "detroit pistons",
+      "pistons",
+      "detroit",
+      "det"
+    ],
+    "gsw": [
+      "golden state warriors",
+      "warriors",
+      "golden state",
+      "gsw"
+    ],
+    "hou": [
+      "houston rockets",
+      "rockets",
+      "houston",
+      "hou"
+    ],
+    "ind": [
+      "indiana pacers",
+      "pacers",
+      "indiana",
+      "ind"
+    ],
+    "lac": [
+      "los angeles clippers",
+      "la clippers",
+      "clippers",
+      "los angeles c",
+      "lac"
+    ],
+    "lal": [
+      "los angeles lakers",
+      "la lakers",
+      "lakers",
+      "los angeles l",
+      "lal"
+    ],
+    "mem": [
+      "memphis grizzlies",
+      "grizzlies",
+      "memphis",
+      "mem"
+    ],
+    "mia": [
+      "miami heat",
+      "heat",
+      "miami",
+      "mia"
+    ],
+    "mil": [
+      "milwaukee bucks",
+      "bucks",
+      "milwaukee",
+      "mil"
+    ],
+    "min": [
+      "minnesota timberwolves",
+      "timberwolves",
+      "wolves",
+      "minnesota",
+      "min"
+    ],
+    "nop": [
+      "new orleans pelicans",
+      "pelicans",
+      "new orleans",
+      "nop"
+    ],
+    "nyk": [
+      "new york knicks",
+      "knicks",
+      "new york",
+      "nyk"
+    ],
+    "okc": [
+      "oklahoma city thunder",
+      "thunder",
+      "oklahoma city",
+      "okc"
+    ],
+    "orl": [
+      "orlando magic",
+      "magic",
+      "orlando",
+      "orl"
+    ],
+    "phi": [
+      "philadelphia 76ers",
+      "76ers",
+      "sixers",
+      "philadelphia",
+      "phi"
+    ],
+    "phx": [
+      "phoenix suns",
+      "suns",
+      "phoenix",
+      "phx"
+    ],
+    "por": [
+      "portland trail blazers",
+      "trail blazers",
+      "blazers",
+      "portland",
+      "por"
+    ],
+    "sac": [
+      "sacramento kings",
+      "kings",
+      "sacramento",
+      "sac"
+    ],
+    "sas": [
+      "san antonio spurs",
+      "spurs",
+      "san antonio",
+      "sas"
+    ],
+    "tor": [
+      "toronto raptors",
+      "raptors",
+      "toronto",
+      "tor"
+    ],
+    "uta": [
+      "utah jazz",
+      "jazz",
+      "utah",
+      "uta"
+    ],
+    "was": [
+      "washington wizards",
+      "wizards",
+      "washington",
+      "was"
+    ]
+  }
+}
