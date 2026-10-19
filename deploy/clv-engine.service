@@ -1,0 +1,30 @@
+# systemd unit for Magno (alternative to docker compose).
+# Install: see README "Deploy on Magno". Assumes code at /opt/clv-engine and a
+# dedicated user "clv"; secrets in /etc/clv-engine.env (chmod 600, owner root).
+[Unit]
+Description=clv-engine paper-only CLV tracker (read-only market data)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clv
+Group=clv
+WorkingDirectory=/opt/clv-engine
+EnvironmentFile=/etc/clv-engine.env
+Environment=DB_PATH=/var/lib/clv-engine/clv.sqlite
+Environment=ALERT_FILE=/var/lib/clv-engine/alerts.jsonl
+Environment=REPORT_DIR=/var/lib/clv-engine/reports
+ExecStart=/usr/bin/python3 -m clv_engine --env-file /dev/null run
+Restart=always
+RestartSec=30
+StateDirectory=clv-engine
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/clv-engine
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

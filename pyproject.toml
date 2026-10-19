@@ -1,0 +1,25 @@
+[project]
+name = "clv-engine"
+version = "0.1.0"
+description = "Paper-only odds / CLV tracker: Polymarket + Kalshi vs Pinnacle closing line (read-only public data)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Julio César Suástegui", email = "juliosuas@gmail.com" }]
+dependencies = []
+
+[project.optional-dependencies]
+tz = ["tzdata"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+clv-engine = "clv_engine.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["clv_engine*"]
+
+[tool.setuptools.package-data]
+clv_engine = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

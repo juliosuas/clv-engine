@@ -1,0 +1,20 @@
+services:
+  clv-engine:
+    build: .
+    image: clv-engine:local
+    restart: unless-stopped
+    env_file: .env            # secrets live only here on the host (never committed)
+    environment:
+      DB_PATH: /data/clv.sqlite
+      ALERT_FILE: /data/alerts.jsonl
+      REPORT_DIR: /data/reports
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
