@@ -150,6 +150,10 @@ The container is non-root, read-only rootfs, drops all capabilities and keeps da
 (chmod 600), then `cp deploy/clv-engine.service /etc/systemd/system/ && systemctl enable --now clv-engine`.
 Data lives in `/var/lib/clv-engine`.
 
+Keep comments on their own lines in any env file. systemd `EnvironmentFile` (and docker `env_file`) do not strip
+inline comments, so `POLL_SECONDS=120  # note` would set the value to `120  # note`. `.env.example` follows this
+rule and `tests/test_env_example.py` enforces it.
+
 ## Layout
 
 ```
