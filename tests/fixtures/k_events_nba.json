@@ -1,0 +1,130 @@
+{
+ "cursor": "",
+ "events": [
+  {
+   "category": "Sports",
+   "collateral_return_type": "MECNET",
+   "event_ticker": "KXNBAGAME-26OCT20BOSDET",
+   "exchange_index": 0,
+   "last_updated_ts": "2026-10-15T17:28:58.012687Z",
+   "markets": [
+    {
+     "ticker": "KXNBAGAME-26OCT20BOSDET-BOS",
+     "event_ticker": "KXNBAGAME-26OCT20BOSDET",
+     "title": "Boston wins",
+     "yes_sub_title": "Boston",
+     "no_sub_title": "Boston",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-20T22:00:00Z",
+     "expected_expiration_time": "2026-10-21T01:00:00Z",
+     "close_time": "2026-10-22T19:00:00Z",
+     "yes_ask_dollars": "0.5200",
+     "yes_bid_dollars": "0.5100",
+     "no_ask_dollars": "0.4900",
+     "no_bid_dollars": "0.4800",
+     "yes_ask_size_fp": "20706.60",
+     "last_price_dollars": "0.5200",
+     "market_type": "binary"
+    },
+    {
+     "ticker": "KXNBAGAME-26OCT20BOSDET-DET",
+     "event_ticker": "KXNBAGAME-26OCT20BOSDET",
+     "title": "Detroit wins",
+     "yes_sub_title": "Detroit",
+     "no_sub_title": "Detroit",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-20T22:00:00Z",
+     "expected_expiration_time": "2026-10-21T01:00:00Z",
+     "close_time": "2026-10-22T19:00:00Z",
+     "yes_ask_dollars": "0.4900",
+     "yes_bid_dollars": "0.4800",
+     "no_ask_dollars": "0.5200",
+     "no_bid_dollars": "0.5100",
+     "yes_ask_size_fp": "38080.40",
+     "last_price_dollars": "0.4900",
+     "market_type": "binary"
+    }
+   ],
+   "mutually_exclusive": true,
+   "product_metadata": {
+    "competition": "Pro Basketball (M)",
+    "competition_scope": "Game"
+   },
+   "series_ticker": "KXNBAGAME",
+   "settlement_sources": [
+    {
+     "name": "the Governing League",
+     "url": "https://www.nba.com"
+    }
+   ],
+   "strike_period": "",
+   "sub_title": "BOS vs DET (Oct 20)",
+   "title": "Boston vs Detroit"
+  },
+  {
+   "category": "Sports",
+   "collateral_return_type": "MECNET",
+   "event_ticker": "KXNBAGAME-26OCT20PHINYK",
+   "exchange_index": 0,
+   "last_updated_ts": "2026-10-15T17:28:58.009005Z",
+   "markets": [
+    {
+     "ticker": "KXNBAGAME-26OCT20PHINYK-PHI",
+     "event_ticker": "KXNBAGAME-26OCT20PHINYK",
+     "title": "Philadelphia wins",
+     "yes_sub_title": "Philadelphia",
+     "no_sub_title": "Philadelphia",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-21T02:00:00Z",
+     "expected_expiration_time": "2026-10-21T05:00:00Z",
+     "close_time": "2026-10-22T23:00:00Z",
+     "yes_ask_dollars": "0.3900",
+     "yes_bid_dollars": "0.3800",
+     "no_ask_dollars": "0.6200",
+     "no_bid_dollars": "0.6100",
+     "yes_ask_size_fp": "82415.96",
+     "last_price_dollars": "0.3900",
+     "market_type": "binary"
+    },
+    {
+     "ticker": "KXNBAGAME-26OCT20PHINYK-NYK",
+     "event_ticker": "KXNBAGAME-26OCT20PHINYK",
+     "title": "New York wins",
+     "yes_sub_title": "New York",
+     "no_sub_title": "New York",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-21T02:00:00Z",
+     "expected_expiration_time": "2026-10-21T05:00:00Z",
+     "close_time": "2026-10-22T23:00:00Z",
+     "yes_ask_dollars": "0.6200",
+     "yes_bid_dollars": "0.6100",
+     "no_ask_dollars": "0.3900",
+     "no_bid_dollars": "0.3800",
+     "yes_ask_size_fp": "6274.79",
+     "last_price_dollars": "0.6200",
+     "market_type": "binary"
+    }
+   ],
+   "mutually_exclusive": true,
+   "product_metadata": {
+    "competition": "Pro Basketball (M)",
+    "competition_scope": "Game"
+   },
+   "series_ticker": "KXNBAGAME",
+   "settlement_sources": [
+    {
+     "name": "the Governing League",
+     "url": "https://www.nba.com"
+    }
+   ],
+   "strike_period": "",
+   "sub_title": "PHI vs NYK (Oct 20)",
+   "title": "Philadelphia vs New York"
+  }
+ ],
+ "milestones": []
+}

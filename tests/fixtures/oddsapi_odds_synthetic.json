@@ -1,0 +1,29 @@
+[
+ {
+  "_comment": "SYNTHETIC: shaped like The Odds API v4 /sports/{sport}/odds (decimal) response; prices invented for tests.",
+  "id": "evt-nba-bos-det",
+  "sport_key": "basketball_nba",
+  "commence_time": "2026-10-20T23:30:00Z",
+  "home_team": "Detroit Pistons",
+  "away_team": "Boston Celtics",
+  "bookmakers": [
+   {"key": "pinnacle", "title": "Pinnacle", "last_update": "2026-10-18T23:00:00Z",
+    "markets": [{"key": "h2h", "last_update": "2026-10-18T23:00:00Z", "outcomes": [{"name": "Boston Celtics", "price": 1.87}, {"name": "Detroit Pistons", "price": 2.0}]}]},
+   {"key": "codere_it", "title": "Codere (IT)", "last_update": "2026-10-18T23:00:00Z",
+    "markets": [{"key": "h2h", "outcomes": [{"name": "Boston Celtics", "price": 1.80}, {"name": "Detroit Pistons", "price": 2.25}]}]}
+  ]
+ },
+ {
+  "id": "evt-mx-gua-nec",
+  "sport_key": "soccer_mexico_ligamx",
+  "commence_time": "2026-10-21T00:07:00Z",
+  "home_team": "Guadalajara",
+  "away_team": "Necaxa",
+  "bookmakers": [
+   {"key": "pinnacle", "title": "Pinnacle", "last_update": "2026-10-18T23:00:00Z",
+    "markets": [{"key": "h2h", "outcomes": [{"name": "Guadalajara", "price": 1.48}, {"name": "Necaxa", "price": 5.6}, {"name": "Draw", "price": 4.6}]}]},
+   {"key": "codere_it", "title": "Codere (IT)", "last_update": "2026-10-18T23:00:00Z",
+    "markets": [{"key": "h2h", "outcomes": [{"name": "Guadalajara", "price": 1.44}, {"name": "Necaxa", "price": 6.5}, {"name": "Draw", "price": 4.3}]}]}
+  ]
+ }
+]

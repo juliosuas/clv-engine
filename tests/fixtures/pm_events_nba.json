@@ -1,0 +1,82 @@
+[
+ {
+  "id": "1185700",
+  "slug": "nba-bos-det-2026-10-20",
+  "title": "Celtics vs. Pistons",
+  "startTime": "2026-10-20T19:00:00Z",
+  "endDate": "2026-10-20T19:00:00Z",
+  "negRisk": false,
+  "closed": false,
+  "active": true,
+  "seriesSlug": "nba-2026",
+  "markets": [
+   {
+    "id": "5676016",
+    "question": "Celtics vs. Pistons",
+    "slug": "nba-bos-det-2026-10-20",
+    "conditionId": "0x028dc9f74bd4f1ae80594afb93e46cd579030afcab48a74e96195f4c8c67a3d3",
+    "outcomes": "[\"Celtics\", \"Pistons\"]",
+    "outcomePrices": "[\"0.515\", \"0.485\"]",
+    "clobTokenIds": "[\"67105986151420762389444558710598385187601372419417593599928887317008220174126\", \"6194634649894872222114139800075806437965693537103509072979175541757029916386\"]",
+    "sportsMarketType": "moneyline",
+    "gameStartTime": "2026-10-20 19:00:00+00",
+    "bestAsk": 0.52,
+    "bestBid": 0.51,
+    "groupItemTitle": null,
+    "negRisk": false,
+    "feeSchedule": {
+     "exponent": 1,
+     "rate": 0.05,
+     "takerOnly": true,
+     "rebateRate": 0.15
+    },
+    "feesEnabled": true,
+    "active": true,
+    "closed": false,
+    "lastTradePrice": 0.52,
+    "volume24hr": 6551.663621,
+    "liquidity": "112235.6044"
+   }
+  ]
+ },
+ {
+  "id": "1185701",
+  "slug": "nba-phi-nyk-2026-10-20",
+  "title": "76ers vs. Knicks",
+  "startTime": "2026-10-20T23:00:00Z",
+  "endDate": "2026-10-20T23:00:00Z",
+  "negRisk": false,
+  "closed": false,
+  "active": true,
+  "seriesSlug": "nba-2026",
+  "markets": [
+   {
+    "id": "5676021",
+    "question": "76ers vs. Knicks",
+    "slug": "nba-phi-nyk-2026-10-20",
+    "conditionId": "0xff6a7cad39309b7170cb0f05207d5391c1d7443174842570803d204e674960d9",
+    "outcomes": "[\"76ers\", \"Knicks\"]",
+    "outcomePrices": "[\"0.375\", \"0.625\"]",
+    "clobTokenIds": "[\"18530775482813086164830807568132305463750341655031391169642129768649683734274\", \"66905676566583664317573429201649106692138646973280275919092487111590728334465\"]",
+    "sportsMarketType": "moneyline",
+    "gameStartTime": "2026-10-20 23:00:00+00",
+    "bestAsk": 0.38,
+    "bestBid": 0.37,
+    "groupItemTitle": null,
+    "negRisk": false,
+    "feeSchedule": {
+     "exponent": 1,
+     "rate": 0.05,
+     "takerOnly": true,
+     "rebateRate": 0.15
+    },
+    "feesEnabled": true,
+    "active": true,
+    "closed": false,
+    "lastTradePrice": 0.38,
+    "volume24hr": 2131.1298439999996,
+    "liquidity": "86669.5817"
+   }
+  ]
+ }
+]

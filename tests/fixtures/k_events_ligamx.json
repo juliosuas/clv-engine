@@ -1,0 +1,176 @@
+{
+ "cursor": "",
+ "events": [
+  {
+   "category": "Sports",
+   "collateral_return_type": "MECNET",
+   "event_ticker": "KXLIGAMXGAME-26OCT20CDGNCX",
+   "exchange_index": 0,
+   "last_updated_ts": "2026-10-15T10:48:31.635974Z",
+   "markets": [
+    {
+     "ticker": "KXLIGAMXGAME-26OCT20CDGNCX-CDG",
+     "event_ticker": "KXLIGAMXGAME-26OCT20CDGNCX",
+     "title": "Guadalajara wins",
+     "yes_sub_title": "Guadalajara",
+     "no_sub_title": "Guadalajara",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-21T03:07:00Z",
+     "expected_expiration_time": "2026-10-21T03:07:00Z",
+     "close_time": "2026-10-23T00:07:00Z",
+     "yes_ask_dollars": "0.6900",
+     "yes_bid_dollars": "0.6800",
+     "no_ask_dollars": "0.3200",
+     "no_bid_dollars": "0.3100",
+     "yes_ask_size_fp": "51296.09",
+     "last_price_dollars": "0.6800",
+     "market_type": "binary"
+    },
+    {
+     "ticker": "KXLIGAMXGAME-26OCT20CDGNCX-NCX",
+     "event_ticker": "KXLIGAMXGAME-26OCT20CDGNCX",
+     "title": "Necaxa wins",
+     "yes_sub_title": "Necaxa",
+     "no_sub_title": "Necaxa",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-21T03:07:00Z",
+     "expected_expiration_time": "2026-10-21T03:07:00Z",
+     "close_time": "2026-10-23T00:07:00Z",
+     "yes_ask_dollars": "0.1400",
+     "yes_bid_dollars": "0.1300",
+     "no_ask_dollars": "0.8700",
+     "no_bid_dollars": "0.8600",
+     "yes_ask_size_fp": "76954.81",
+     "last_price_dollars": "0.1400",
+     "market_type": "binary"
+    },
+    {
+     "ticker": "KXLIGAMXGAME-26OCT20CDGNCX-TIE",
+     "event_ticker": "KXLIGAMXGAME-26OCT20CDGNCX",
+     "title": "Tie is the result",
+     "yes_sub_title": "Tie",
+     "no_sub_title": "Tie",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-21T03:07:00Z",
+     "expected_expiration_time": "2026-10-21T03:07:00Z",
+     "close_time": "2026-10-23T00:07:00Z",
+     "yes_ask_dollars": "0.1900",
+     "yes_bid_dollars": "0.1700",
+     "no_ask_dollars": "0.8300",
+     "no_bid_dollars": "0.8100",
+     "yes_ask_size_fp": "48820.08",
+     "last_price_dollars": "0.1900",
+     "market_type": "binary"
+    }
+   ],
+   "mutually_exclusive": true,
+   "product_metadata": {
+    "competition": "Liga MX",
+    "competition_scope": "Game"
+   },
+   "series_ticker": "KXLIGAMXGAME",
+   "settlement_sources": [
+    {
+     "name": "ESPN",
+     "url": "https://www.espn.com/"
+    },
+    {
+     "name": "Fox Sports",
+     "url": "https://www.foxsports.com/"
+    }
+   ],
+   "strike_period": "",
+   "sub_title": "CDG vs NCX (Oct 20)",
+   "title": "Guadalajara vs Necaxa"
+  },
+  {
+   "category": "Sports",
+   "collateral_return_type": "MECNET",
+   "event_ticker": "KXLIGAMXGAME-26OCT20ASLQUE",
+   "exchange_index": 0,
+   "last_updated_ts": "2026-10-15T10:48:31.635974Z",
+   "markets": [
+    {
+     "ticker": "KXLIGAMXGAME-26OCT20ASLQUE-ASL",
+     "event_ticker": "KXLIGAMXGAME-26OCT20ASLQUE",
+     "title": "San Luis wins",
+     "yes_sub_title": "San Luis",
+     "no_sub_title": "San Luis",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-21T04:00:00Z",
+     "expected_expiration_time": "2026-10-21T04:00:00Z",
+     "close_time": "2026-10-23T01:00:00Z",
+     "yes_ask_dollars": "0.4300",
+     "yes_bid_dollars": "0.4200",
+     "no_ask_dollars": "0.5800",
+     "no_bid_dollars": "0.5700",
+     "yes_ask_size_fp": "18460.03",
+     "last_price_dollars": "0.4300",
+     "market_type": "binary"
+    },
+    {
+     "ticker": "KXLIGAMXGAME-26OCT20ASLQUE-QUE",
+     "event_ticker": "KXLIGAMXGAME-26OCT20ASLQUE",
+     "title": "Queretaro wins",
+     "yes_sub_title": "Queretaro",
+     "no_sub_title": "Queretaro",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-21T04:00:00Z",
+     "expected_expiration_time": "2026-10-21T04:00:00Z",
+     "close_time": "2026-10-23T01:00:00Z",
+     "yes_ask_dollars": "0.3100",
+     "yes_bid_dollars": "0.3000",
+     "no_ask_dollars": "0.7000",
+     "no_bid_dollars": "0.6900",
+     "yes_ask_size_fp": "11040.85",
+     "last_price_dollars": "0.3100",
+     "market_type": "binary"
+    },
+    {
+     "ticker": "KXLIGAMXGAME-26OCT20ASLQUE-TIE",
+     "event_ticker": "KXLIGAMXGAME-26OCT20ASLQUE",
+     "title": "Tie is the result",
+     "yes_sub_title": "Tie",
+     "no_sub_title": "Tie",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-21T04:00:00Z",
+     "expected_expiration_time": "2026-10-21T04:00:00Z",
+     "close_time": "2026-10-23T01:00:00Z",
+     "yes_ask_dollars": "0.2700",
+     "yes_bid_dollars": "0.2600",
+     "no_ask_dollars": "0.7400",
+     "no_bid_dollars": "0.7300",
+     "yes_ask_size_fp": "3032.04",
+     "last_price_dollars": "0.2700",
+     "market_type": "binary"
+    }
+   ],
+   "mutually_exclusive": true,
+   "product_metadata": {
+    "competition": "Liga MX",
+    "competition_scope": "Game"
+   },
+   "series_ticker": "KXLIGAMXGAME",
+   "settlement_sources": [
+    {
+     "name": "ESPN",
+     "url": "https://www.espn.com/"
+    },
+    {
+     "name": "Fox Sports",
+     "url": "https://www.foxsports.com/"
+    }
+   ],
+   "strike_period": "",
+   "sub_title": "ASL vs QUE (Oct 20)",
+   "title": "San Luis vs Queretaro"
+  }
+ ],
+ "milestones": []
+}

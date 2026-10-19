@@ -1,0 +1,9 @@
+{
+ "series": {
+  "ticker": "KXLIGAMXGAME",
+  "title": "Liga MX Game",
+  "category": "Sports",
+  "fee_type": "quadratic",
+  "fee_multiplier": 1
+ }
+}
