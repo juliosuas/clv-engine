@@ -15,7 +15,7 @@ from dataclasses import dataclass
 class League:
     key: str
     name: str
-    sport: str  # soccer | basketball
+    sport: str  # soccer | basketball | football
     three_way: bool
     polymarket_series_id: str | None
     polymarket_ordering: str  # "home" -> first listed team is home; "away" -> first is away
@@ -28,10 +28,14 @@ LEAGUES: dict[str, League] = {
     "epl": League("epl", "Premier League", "soccer", True, "10188", "home", "KXEPLGAME", "soccer_epl"),
     "laliga": League("laliga", "La Liga", "soccer", True, "10193", "home", "KXLALIGAGAME", "soccer_spain_la_liga"),
     "ucl": League("ucl", "UEFA Champions League", "soccer", True, "10204", "home", "KXUCLGAME", "soccer_uefa_champs_league"),
+    # NFL: Polymarket series 12185 and Kalshi KXNFLGAME verified 2026-10-27 (public read-only GETs);
+    # two-way moneyline, same structure as NBA. Pinnacle h2h key per the Odds API sport list (not exercised live: no key).
+    "nfl": League("nfl", "NFL", "football", False, "12185", "away", "KXNFLGAME", "americanfootball_nfl"),
     "nba": League("nba", "NBA", "basketball", False, "10345", "away", "KXNBAGAME", "basketball_nba"),
 }
 
-DEFAULT_ORDER = ["ligamx", "epl", "laliga", "ucl", "nba"]
+# Priority: high-volume markets first (NBA, NFL, big soccer, then Liga MX); UCL last (excluded by default).
+DEFAULT_ORDER = ["nba", "nfl", "epl", "laliga", "ligamx", "ucl"]
 
 
 def get_leagues(keys: list[str]) -> list[League]:

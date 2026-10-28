@@ -63,13 +63,31 @@ class Candidate:
         return self.fair / self.fill.effective_price - 1.0 if self.fill.shares else -1.0
 
 
+def ask_depth_usd(asks: list[tuple[float, float]], tolerance: float) -> float:
+    """USD notional (price x shares) resting within `tolerance` of the best ask."""
+    if not asks:
+        return 0.0
+    asks = sorted(asks)
+    cap = asks[0][0] + tolerance + 1e-9
+    return sum(p * s for p, s in asks if p <= cap)
+
+
+def entry_allowed(league: str, venue: str, settings) -> bool:
+    """Temporary scope cut (EXCLUDED_LEAGUES / EXCLUDED_VENUES): no new entries there."""
+    return league not in settings.excluded_leagues and venue not in settings.excluded_venues
+
+
 def evaluate(game: MatchedGame, vg: VenueGame, settings, now: datetime) -> list[Candidate]:
+    if not entry_allowed(game.league, vg.venue, settings):
+        return []
     if game.start and game.start - now < timedelta(minutes=settings.min_minutes_before_start):
         return []
     ref = reference(game, vg.venue, settings.entry_reference)
     if not ref:
         return []
     source, fair = ref
+    if settings.require_pinnacle_ref and source != "pinnacle":
+        return []
     sf = sharp_fair(game)
     out = []
     for key, q in vg.outcomes.items():
@@ -83,9 +101,11 @@ def evaluate(game: MatchedGame, vg: VenueGame, settings, now: datetime) -> list[
                 continue
             p = fair[key] if side == "yes" else 1.0 - fair[key]
             spf = None if sf is None or key not in sf else (sf[key] if side == "yes" else 1.0 - sf[key])
+            if settings.min_depth_usd > 0 and ask_depth_usd(asks, settings.depth_tolerance) < settings.min_depth_usd:
+                continue  # too thin at the quoted price to trust the fill
             fill = fill_for_stake(asks, settings.stake_usd, vg.fees)
             if not fill.shares or (not fill.complete and not settings.allow_partial):
-                continue
+                continue  # full fill of STAKE_USD required unless ALLOW_PARTIAL=1
             c = Candidate(vg.venue, q, side, fill, p, source, spf)
             if c.edge >= settings.min_edge:
                 out.append(c)

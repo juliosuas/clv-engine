@@ -49,7 +49,12 @@ def _list(name: str, default: str) -> list[str]:
 @dataclass
 class Settings:
     db_path: str = "./data/clv.sqlite"
-    leagues: list[str] = field(default_factory=lambda: ["ligamx", "epl", "laliga", "ucl", "nba"])
+    # Order = priority: leagues are processed (and Odds API credits spent) in this order.
+    leagues: list[str] = field(default_factory=lambda: ["nba", "nfl", "epl", "laliga", "ligamx", "ucl"])
+    # Temporary scope cut: no NEW entries and no Pinnacle polling for these leagues / venues
+    # (entries already in the ledger still get their close and settlement).
+    excluded_leagues: list[str] = field(default_factory=lambda: ["ucl"])
+    excluded_venues: list[str] = field(default_factory=lambda: ["kalshi"])
     poll_seconds: int = 120
     lookahead_hours: float = 72
     match_window_hours: float = 30
@@ -63,9 +68,38 @@ class Settings:
     sharp_close_poll_seconds: int = 120
     close_capture_minutes: int = 30
     odds_api_historical: bool = False
+    # --- Odds API credit scheduler (see clv_engine/sharp/quota.py) ---
+    # Cadence tiers by time to the nearest relevant kickoff (seconds between /odds calls per league).
+    sharp_near_poll_seconds: int = 600
+    sharp_idle_poll_seconds: int = 3600
+    near_window_minutes: int = 180
+    idle_after_minutes: int = 720
+    # 1 = poll densely only for games that have pending (unclosed) entries; 0 = every game in the window.
+    close_dense_pending_only: bool = True
+    # UNVERIFIED planning number, not a plan limit: set it to your own plan's quota / days in the period.
+    odds_api_daily_budget: int = 1000
+    # Share of the daily budget kept for close-window polls (they may use 100%, other polls only the rest).
+    odds_api_close_reserve: float = 0.30
+    # Hard floor on the provider-reported x-requests-remaining: below it only close-window polls run.
+    odds_api_min_remaining: int = 100
+    # Assumed credits per /odds call; 0 = derive (1 market x ceil(books/10) regions); replaced by x-requests-last when sent.
+    odds_api_credits_per_call: int = 0
+    # Pinnacle data older than this is not used for entries or closing capture (budget exhausted, outage).
+    max_sharp_age_minutes: float = 20
+    # A Pinnacle close only counts if sampled this close to kickoff (0 disables the check).
+    close_max_age_minutes: float = 20
+    # Planning-only assumption for the credit estimate: distinct kickoff slots per league per day.
+    plan_kickoff_clusters: int = 3
 
     entry_reference: str = "auto"  # auto | sharp | consensus
-    min_edge: float = 0.02
+    # Entry gate (proposal, Julio to approve): edge vs Pinnacle no-vig fair, AFTER fees, >= 5%.
+    min_edge: float = 0.05
+    # Only Pinnacle may justify an entry (consensus fallback no longer opens paper entries).
+    require_pinnacle_ref: bool = True
+    # Minimum ask depth (USD notional) within depth_tolerance of the best ask; the full STAKE_USD
+    # must also fill (ALLOW_PARTIAL=0). 0 disables the depth check.
+    min_depth_usd: float = 250.0
+    depth_tolerance: float = 0.01
     stake_usd: float = 100.0
     allow_partial: bool = False
     max_entries_per_outcome: int = 1
@@ -99,6 +133,16 @@ class Settings:
     weekly_report_hour: int = 9
     log_level: str = "INFO"
 
+    # --- graduation gate (proposed thresholds, not approved facts; see docs/GRADUATION.md) ---
+    grad_min_entries: int = 300
+    grad_ci_level: float = 0.90
+    grad_min_group_entries: int = 30
+    grad_min_leagues: int = 2
+    grad_min_venues: int = 2
+    grad_max_league_share: float = 0.70
+    grad_min_settled_fraction: float = 0.90
+    grad_bootstrap_samples: int = 5000
+
     @classmethod
     def from_env(cls, dotenv: str | None = ".env") -> "Settings":
         if dotenv:
@@ -107,6 +151,8 @@ class Settings:
         return cls(
             db_path=os.environ.get("DB_PATH", d.db_path),
             leagues=_list("LEAGUES", ",".join(d.leagues)),
+            excluded_leagues=[x.lower() for x in _list("EXCLUDED_LEAGUES", ",".join(d.excluded_leagues))],
+            excluded_venues=[x.lower() for x in _list("EXCLUDED_VENUES", ",".join(d.excluded_venues))],
             poll_seconds=_i("POLL_SECONDS", d.poll_seconds),
             lookahead_hours=_f("LOOKAHEAD_HOURS", d.lookahead_hours),
             match_window_hours=_f("MATCH_WINDOW_HOURS", d.match_window_hours),
@@ -119,8 +165,23 @@ class Settings:
             sharp_close_poll_seconds=_i("SHARP_CLOSE_POLL_SECONDS", d.sharp_close_poll_seconds),
             close_capture_minutes=_i("CLOSE_CAPTURE_MINUTES", d.close_capture_minutes),
             odds_api_historical=_b("ODDS_API_HISTORICAL", d.odds_api_historical),
+            sharp_near_poll_seconds=_i("SHARP_NEAR_POLL_SECONDS", d.sharp_near_poll_seconds),
+            sharp_idle_poll_seconds=_i("SHARP_IDLE_POLL_SECONDS", d.sharp_idle_poll_seconds),
+            near_window_minutes=_i("NEAR_WINDOW_MINUTES", d.near_window_minutes),
+            idle_after_minutes=_i("IDLE_AFTER_MINUTES", d.idle_after_minutes),
+            close_dense_pending_only=_b("CLOSE_DENSE_PENDING_ONLY", d.close_dense_pending_only),
+            odds_api_daily_budget=_i("ODDS_API_DAILY_BUDGET", d.odds_api_daily_budget),
+            odds_api_close_reserve=_f("ODDS_API_CLOSE_RESERVE", d.odds_api_close_reserve),
+            odds_api_min_remaining=_i("ODDS_API_MIN_REMAINING", d.odds_api_min_remaining),
+            odds_api_credits_per_call=_i("ODDS_API_CREDITS_PER_CALL", d.odds_api_credits_per_call),
+            max_sharp_age_minutes=_f("MAX_SHARP_AGE_MINUTES", d.max_sharp_age_minutes),
+            close_max_age_minutes=_f("CLOSE_MAX_AGE_MINUTES", d.close_max_age_minutes),
+            plan_kickoff_clusters=_i("PLAN_KICKOFF_CLUSTERS", d.plan_kickoff_clusters),
             entry_reference=os.environ.get("ENTRY_REFERENCE", d.entry_reference).strip().lower(),
             min_edge=_f("MIN_EDGE", d.min_edge),
+            require_pinnacle_ref=_b("REQUIRE_PINNACLE_REF", d.require_pinnacle_ref),
+            min_depth_usd=_f("MIN_DEPTH_USD", d.min_depth_usd),
+            depth_tolerance=_f("DEPTH_TOLERANCE", d.depth_tolerance),
             stake_usd=_f("STAKE_USD", d.stake_usd),
             allow_partial=_b("ALLOW_PARTIAL", d.allow_partial),
             max_entries_per_outcome=_i("MAX_ENTRIES_PER_OUTCOME", d.max_entries_per_outcome),
@@ -149,4 +210,12 @@ class Settings:
             weekly_report_weekday=_i("WEEKLY_REPORT_WEEKDAY", d.weekly_report_weekday),
             weekly_report_hour=_i("WEEKLY_REPORT_HOUR", d.weekly_report_hour),
             log_level=os.environ.get("LOG_LEVEL", d.log_level),
+            grad_min_entries=_i("GRAD_MIN_ENTRIES", d.grad_min_entries),
+            grad_ci_level=_f("GRAD_CI_LEVEL", d.grad_ci_level),
+            grad_min_group_entries=_i("GRAD_MIN_GROUP_ENTRIES", d.grad_min_group_entries),
+            grad_min_leagues=_i("GRAD_MIN_LEAGUES", d.grad_min_leagues),
+            grad_min_venues=_i("GRAD_MIN_VENUES", d.grad_min_venues),
+            grad_max_league_share=_f("GRAD_MAX_LEAGUE_SHARE", d.grad_max_league_share),
+            grad_min_settled_fraction=_f("GRAD_MIN_SETTLED_FRACTION", d.grad_min_settled_fraction),
+            grad_bootstrap_samples=_i("GRAD_BOOTSTRAP_SAMPLES", d.grad_bootstrap_samples),
         )

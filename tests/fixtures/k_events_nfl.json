@@ -1,0 +1,101 @@
+{
+ "cursor": "",
+ "events": [
+  {
+   "category": "Sports",
+   "event_ticker": "KXNFLGAME-26OCT29CARGB",
+   "markets": [
+    {
+     "ticker": "KXNFLGAME-26OCT29CARGB-GB",
+     "event_ticker": "KXNFLGAME-26OCT29CARGB",
+     "title": "Green Bay wins",
+     "yes_sub_title": "Green Bay",
+     "no_sub_title": "Green Bay",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-30T03:15:00Z",
+     "expected_expiration_time": "2026-10-30T03:15:00Z",
+     "close_time": "2026-11-01T00:15:00Z",
+     "yes_ask_dollars": "0.6500",
+     "yes_bid_dollars": "0.6400",
+     "no_ask_dollars": "0.3600",
+     "no_bid_dollars": "0.3500",
+     "yes_ask_size_fp": "3088981.06",
+     "last_price_dollars": "0.6400",
+     "market_type": "binary"
+    },
+    {
+     "ticker": "KXNFLGAME-26OCT29CARGB-CAR",
+     "event_ticker": "KXNFLGAME-26OCT29CARGB",
+     "title": "Carolina wins",
+     "yes_sub_title": "Carolina",
+     "no_sub_title": "Carolina",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-10-30T03:15:00Z",
+     "expected_expiration_time": "2026-10-30T03:15:00Z",
+     "close_time": "2026-11-01T00:15:00Z",
+     "yes_ask_dollars": "0.3600",
+     "yes_bid_dollars": "0.3500",
+     "no_ask_dollars": "0.6500",
+     "no_bid_dollars": "0.6400",
+     "yes_ask_size_fp": "3892278.59",
+     "last_price_dollars": "0.3600",
+     "market_type": "binary"
+    }
+   ],
+   "mutually_exclusive": true,
+   "series_ticker": "KXNFLGAME",
+   "sub_title": "CAR vs GB (Oct 29)",
+   "title": "Carolina vs Green Bay"
+  },
+  {
+   "category": "Sports",
+   "event_ticker": "KXNFLGAME-26NOV01BALBUF",
+   "markets": [
+    {
+     "ticker": "KXNFLGAME-26NOV01BALBUF-BUF",
+     "event_ticker": "KXNFLGAME-26NOV01BALBUF",
+     "title": "Buffalo wins",
+     "yes_sub_title": "Buffalo",
+     "no_sub_title": "Buffalo",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-11-01T21:00:00Z",
+     "expected_expiration_time": "2026-11-01T21:00:00Z",
+     "close_time": "2026-11-03T18:00:00Z",
+     "yes_ask_dollars": "0.6300",
+     "yes_bid_dollars": "0.6200",
+     "no_ask_dollars": "0.3800",
+     "no_bid_dollars": "0.3700",
+     "yes_ask_size_fp": "318139.92",
+     "last_price_dollars": "0.6300",
+     "market_type": "binary"
+    },
+    {
+     "ticker": "KXNFLGAME-26NOV01BALBUF-BAL",
+     "event_ticker": "KXNFLGAME-26NOV01BALBUF",
+     "title": "Baltimore wins",
+     "yes_sub_title": "Baltimore",
+     "no_sub_title": "Baltimore",
+     "status": "active",
+     "result": "",
+     "occurrence_datetime": "2026-11-01T21:00:00Z",
+     "expected_expiration_time": "2026-11-01T21:00:00Z",
+     "close_time": "2026-11-03T18:00:00Z",
+     "yes_ask_dollars": "0.3800",
+     "yes_bid_dollars": "0.3700",
+     "no_ask_dollars": "0.6300",
+     "no_bid_dollars": "0.6200",
+     "yes_ask_size_fp": "1726.72",
+     "last_price_dollars": "0.3800",
+     "market_type": "binary"
+    }
+   ],
+   "mutually_exclusive": true,
+   "series_ticker": "KXNFLGAME",
+   "sub_title": "BAL vs BUF (Nov 1)",
+   "title": "Baltimore vs Buffalo"
+  }
+ ]
+}

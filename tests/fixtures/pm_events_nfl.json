@@ -1,0 +1,82 @@
+[
+ {
+  "id": "1158894",
+  "slug": "nfl-car-gb-2026-10-30",
+  "title": "Panthers vs. Packers",
+  "startTime": "2026-10-30T00:15:00Z",
+  "endDate": "2026-10-30T00:15:00Z",
+  "negRisk": false,
+  "closed": false,
+  "active": true,
+  "seriesSlug": "nfl-2026",
+  "markets": [
+   {
+    "id": "5455706",
+    "question": "Panthers vs. Packers",
+    "slug": "nfl-car-gb-2026-10-30",
+    "conditionId": "0x3e5dab364ce5d5be651c1e9afac62577be5d7680497606e401afd06f5ea068af",
+    "outcomes": "[\"Panthers\", \"Packers\"]",
+    "outcomePrices": "[\"0.355\", \"0.645\"]",
+    "clobTokenIds": "[\"44088474889331441193117550253317010286177174285925852888996349296923897431470\", \"14454103804194723330483648549716480987369769098696900994775497216980487558661\"]",
+    "sportsMarketType": "moneyline",
+    "gameStartTime": "2026-10-30 00:15:00+00",
+    "bestAsk": 0.36,
+    "bestBid": 0.35,
+    "groupItemTitle": null,
+    "negRisk": false,
+    "feeSchedule": {
+     "exponent": 1,
+     "rate": 0.03,
+     "takerOnly": true,
+     "rebateRate": 0.15
+    },
+    "feesEnabled": true,
+    "active": true,
+    "closed": false,
+    "lastTradePrice": 0.35,
+    "volume24hr": 450.888203,
+    "liquidity": "229815.4127"
+   }
+  ]
+ },
+ {
+  "id": "1176722",
+  "slug": "nfl-bal-buf-2026-11-01",
+  "title": "Ravens vs. Bills",
+  "startTime": "2026-11-01T18:00:00Z",
+  "endDate": "2026-11-01T18:00:00Z",
+  "negRisk": false,
+  "closed": false,
+  "active": true,
+  "seriesSlug": "nfl-2026",
+  "markets": [
+   {
+    "id": "5603301",
+    "question": "Ravens vs. Bills",
+    "slug": "nfl-bal-buf-2026-11-01",
+    "conditionId": "0x6e988ea96e8f18fb71f7635bbedb07cda76063ad6c496eaa5bd468a59013cc0e",
+    "outcomes": "[\"Ravens\", \"Bills\"]",
+    "outcomePrices": "[\"0.375\", \"0.625\"]",
+    "clobTokenIds": "[\"20148701274307262079511920329845847090507417100785010730185222912814646865955\", \"43210198229947266739275509672182918749849138005596578323550661242708614701747\"]",
+    "sportsMarketType": "moneyline",
+    "gameStartTime": "2026-11-01 18:00:00+00",
+    "bestAsk": 0.38,
+    "bestBid": 0.37,
+    "groupItemTitle": null,
+    "negRisk": false,
+    "feeSchedule": {
+     "exponent": 1,
+     "rate": 0.03,
+     "takerOnly": true,
+     "rebateRate": 0.15
+    },
+    "feesEnabled": true,
+    "active": true,
+    "closed": false,
+    "lastTradePrice": 0.38,
+    "volume24hr": 8831.71153,
+    "liquidity": "51358.2968"
+   }
+  ]
+ }
+]

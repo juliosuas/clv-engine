@@ -3,7 +3,7 @@ import socket
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -32,7 +32,19 @@ class FakeHttp:
     def __init__(self, overrides=None):
         self.calls = []
         self.overrides = overrides or {}
-        self.pm_books = {**load("pm_books_nba.json"), **load("pm_books_ligamx.json")}
+        self.pm_books = {**load("pm_books_nba.json"), **load("pm_books_ligamx.json"), **load("pm_books_nfl.json")}
+        # The Odds API response headers (None = provider sent none); set per test to simulate quota state.
+        self.odds_headers = None
+        self.odds_calls = 0
+        self.odds_empty = False
+
+    def get_json_meta(self, url, params=None, headers=None):
+        before = self.odds_calls
+        data = self.get_json(url, params, headers)
+        h = {}
+        if self.odds_calls > before and self.odds_headers is not None:
+            h = dict(self.odds_headers() if callable(self.odds_headers) else self.odds_headers)
+        return data, h
 
     def get_json(self, url, params=None, headers=None):
         q = {}
@@ -49,16 +61,18 @@ class FakeHttp:
         if "gamma-api.polymarket.com" in url and path == "/events":
             if "slug" in q:
                 return None
-            return load({"10345": "pm_events_nba.json", "10290": "pm_events_ligamx.json"}.get(str(q.get("series_id")), "missing")) if q.get("offset", 0) == 0 and str(q.get("series_id")) in ("10345", "10290") else []
+            names = {"10345": "pm_events_nba.json", "10290": "pm_events_ligamx.json", "12185": "pm_events_nfl.json"}
+            return load(names[str(q.get("series_id"))]) if q.get("offset", 0) == 0 and str(q.get("series_id")) in names else []
         if "clob.polymarket.com" in url and path == "/book":
             b = self.pm_books.get(q.get("token_id"))
             return b
         if "kalshi.com" in url:
             if path.endswith("/events"):
-                name = {"KXNBAGAME": "k_events_nba.json", "KXLIGAMXGAME": "k_events_ligamx.json"}.get(q.get("series_ticker"))
+                name = {"KXNBAGAME": "k_events_nba.json", "KXLIGAMXGAME": "k_events_ligamx.json", "KXNFLGAME": "k_events_nfl.json"}.get(q.get("series_ticker"))
                 return load(name) if name else {"events": [], "cursor": ""}
             if path.endswith("/markets/orderbooks"):
-                obs = load("k_orderbooks_nba.json")["orderbooks"] + load("k_orderbooks_ligamx.json")["orderbooks"]
+                obs = (load("k_orderbooks_nba.json")["orderbooks"] + load("k_orderbooks_ligamx.json")["orderbooks"]
+                       + load("k_orderbooks_nfl.json")["orderbooks"])
                 want = set(q.get("tickers", []))
                 return {"orderbooks": [o for o in obs if o["ticker"] in want]}
             if "/series/" in path:
@@ -66,9 +80,10 @@ class FakeHttp:
                 f = FIX / f"k_series_{t}.json"
                 return json.loads(f.read_text()) if f.exists() else None
         if "the-odds-api.com" in url and "/odds" in path:
+            self.odds_calls += 1
             data = load("oddsapi_odds_synthetic.json")
             sport = path.split("/sports/")[1].split("/")[0]
-            return [e for e in data if e["sport_key"] == sport]
+            return [] if self.odds_empty else [e for e in data if e["sport_key"] == sport]
         return None
 
 

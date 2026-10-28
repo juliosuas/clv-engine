@@ -96,6 +96,15 @@ CREATE TABLE IF NOT EXISTS alerts (
     count INTEGER NOT NULL DEFAULT 1,
     payload TEXT
 );
+CREATE TABLE IF NOT EXISTS api_usage (
+    day TEXT PRIMARY KEY,           -- UTC date YYYY-MM-DD
+    requests INTEGER NOT NULL DEFAULT 0,   -- /odds calls that reached the provider
+    credits REAL NOT NULL DEFAULT 0,       -- credits spent today (x-requests-last when sent, else the estimate)
+    skipped INTEGER NOT NULL DEFAULT 0,    -- polls skipped because of the budget
+    remaining INTEGER,                     -- last x-requests-remaining seen (quota period, not necessarily daily)
+    used INTEGER,                          -- last x-requests-used seen
+    updated_at TEXT
+);
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
@@ -183,6 +192,40 @@ class Ledger:
     def closing(self, game_key: str, outcome_key: str, source: str) -> float | None:
         r = self.conn.execute("SELECT value FROM closing WHERE game_key=? AND outcome_key=? AND source=?", (game_key, outcome_key, source)).fetchone()
         return None if r is None else float(r[0])
+
+    def closing_row(self, game_key: str, outcome_key: str, source: str) -> tuple[float, datetime | None] | None:
+        """(value, captured_at) of a stored closing line."""
+        r = self.conn.execute("SELECT value, captured_at FROM closing WHERE game_key=? AND outcome_key=? AND source=?",
+                              (game_key, outcome_key, source)).fetchone()
+        return None if r is None else (float(r["value"]), parse_datetime(r["captured_at"]))
+
+    def pending_kickoffs(self, league: str) -> list[datetime]:
+        """Kickoff times of games that still have entries without a Pinnacle close (not yet 'done')."""
+        rows = self.conn.execute("SELECT DISTINCT start_time FROM entries WHERE league=? AND clv_status != 'done' AND start_time IS NOT NULL",
+                                 (league,)).fetchall()
+        return sorted(t for t in (parse_datetime(r[0]) for r in rows) if t is not None)
+
+    # ---- Odds API credit usage ---------------------------------------------
+    def usage(self, day: str) -> dict[str, Any]:
+        r = self.conn.execute("SELECT * FROM api_usage WHERE day=?", (day,)).fetchone()
+        if r is None:
+            return {"day": day, "requests": 0, "credits": 0.0, "skipped": 0, "remaining": None, "used": None}
+        return dict(r)
+
+    def usage_add(self, day: str, now: datetime, credits: float = 0.0, requests: int = 0, skipped: int = 0,
+                  remaining: int | None = None, used: int | None = None) -> None:
+        self.conn.execute(
+            "INSERT INTO api_usage (day, requests, credits, skipped, remaining, used, updated_at) VALUES (?,?,?,?,?,?,?) "
+            "ON CONFLICT(day) DO UPDATE SET requests=requests+excluded.requests, credits=credits+excluded.credits, "
+            "skipped=skipped+excluded.skipped, remaining=COALESCE(excluded.remaining, remaining), "
+            "used=COALESCE(excluded.used, used), updated_at=excluded.updated_at",
+            (day, requests, credits, skipped, remaining, used, iso(now)),
+        )
+        self.conn.commit()
+
+    def last_known_remaining(self) -> int | None:
+        r = self.conn.execute("SELECT remaining FROM api_usage WHERE remaining IS NOT NULL ORDER BY day DESC LIMIT 1").fetchone()
+        return None if r is None else int(r[0])
 
     # ---- quotes (price history with dedupe, pattern from polymarket-desk api/market.py) ----
     def add_quote(self, game_key: str, source: str, outcome_key: str, best_ask: float | None, best_bid: float | None, ask_depth: float | None,

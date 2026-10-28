@@ -25,5 +25,17 @@
    {"key": "codere_it", "title": "Codere (IT)", "last_update": "2026-10-18T23:00:00Z",
     "markets": [{"key": "h2h", "outcomes": [{"name": "Guadalajara", "price": 1.44}, {"name": "Necaxa", "price": 6.5}, {"name": "Draw", "price": 4.3}]}]}
   ]
- }
+ },
+ {"_comment": "SYNTHETIC NFL event (prices invented for tests; teams and kickoffs mirror the recorded 2026-10-27 NFL venue fixtures)",
+  "id": "evt-nfl-car-gb", "sport_key": "americanfootball_nfl", "commence_time": "2026-10-30T00:15:00Z", "home_team": "Green Bay Packers", "away_team": "Carolina Panthers",
+  "bookmakers": [
+   {"key": "pinnacle", "title": "Pinnacle", "last_update": "2026-10-28T23:00:00Z",
+    "markets": [{"key": "h2h", "last_update": "2026-10-28T23:00:00Z", "outcomes": [{"name": "Green Bay Packers", "price": 1.8}, {"name": "Carolina Panthers", "price": 2.15}]}]}
+  ]},
+ {"_comment": "SYNTHETIC NFL event (prices invented for tests; teams and kickoffs mirror the recorded 2026-10-27 NFL venue fixtures)",
+  "id": "evt-nfl-bal-buf", "sport_key": "americanfootball_nfl", "commence_time": "2026-11-01T18:00:00Z", "home_team": "Buffalo Bills", "away_team": "Baltimore Ravens",
+  "bookmakers": [
+   {"key": "pinnacle", "title": "Pinnacle", "last_update": "2026-10-28T23:00:00Z",
+    "markets": [{"key": "h2h", "last_update": "2026-10-28T23:00:00Z", "outcomes": [{"name": "Buffalo Bills", "price": 1.6}, {"name": "Baltimore Ravens", "price": 2.5}]}]}
+  ]}
 ]

@@ -93,7 +93,7 @@ def format_summary(s: dict) -> str:
     return "\n".join(lines)
 
 
-def weekly(ledger: Ledger, end: datetime | None = None, tz_name: str = "America/Mexico_City") -> str:
+def weekly(ledger: Ledger, end: datetime | None = None, tz_name: str = "America/Mexico_City", settings=None) -> str:
     end = end or utc_now()
     start = end - timedelta(days=7)
     tz, tzlabel = _tz(tz_name)
@@ -152,15 +152,20 @@ def weekly(ledger: Ledger, end: datetime | None = None, tz_name: str = "America/
         for a in arbs[:10]:
             legs = "; ".join(f"{l['venue']} {l['side']} {l['outcome']} @{l['avg_price']}" for l in json.loads(a["legs"]))
             md.append(f"| {_local(a['ts'], tz)} | {a['kind']} | {a['game_key']} | {a['shares']:.0f} | {_usd(a['cost'])} | {_usd(a['profit'])} | {a['roi']:.2%} | {legs} |")
+    if settings is not None:
+        from .graduation import format_graduation, format_status, graduation, status
+
+        md += ["", "## Measured sample and graduation check (proposed thresholds, paper only)", "", "```",
+               format_status(status(ledger, settings, end)), "", format_graduation(graduation(ledger, settings, end)), "```"]
     md += ["", "---", "Definitions: CLV = Pinnacle de-vigged closing prob / effective entry price (incl. fees) − 1. "
            "Venue CLV = the venue's own closing mid / avg entry price − 1. 'CLV pending' = no Pinnacle close yet (feed not configured or game not started)."]
     return "\n".join(md) + "\n"
 
 
-def write_weekly(ledger: Ledger, out_dir: str, end: datetime | None = None, tz_name: str = "America/Mexico_City") -> Path:
+def write_weekly(ledger: Ledger, out_dir: str, end: datetime | None = None, tz_name: str = "America/Mexico_City", settings=None) -> Path:
     end = end or utc_now()
     tz, _ = _tz(tz_name)
     path = Path(out_dir) / f"weekly-{end.astimezone(tz):%Y-%m-%d}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(weekly(ledger, end, tz_name), encoding="utf-8")
+    path.write_text(weekly(ledger, end, tz_name, settings), encoding="utf-8")
     return path

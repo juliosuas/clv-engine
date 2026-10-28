@@ -6,7 +6,7 @@ import json
 import logging
 import signal
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 
 from .alerts import Alert, AlertManager
@@ -18,7 +18,7 @@ from .matching import match_games
 from .models import MatchedGame
 from .orderbook import depth
 from .sharp.base import SharpSource
-from .strategy import consensus_fair, evaluate, sharp_fair
+from .strategy import consensus_fair, entry_allowed, evaluate, sharp_fair
 from .util import iso, parse_datetime, utc_now
 
 log = logging.getLogger("clv_engine")
@@ -50,6 +50,16 @@ class Engine:
         self.alerts = alerts
         self.leagues: list[League] = get_leagues(settings.leagues)
         self._stop = False
+        self._sharp_ts: dict[str, datetime | None] = {}
+        self._missing_logged: set[int] = set()
+        self._hist_tried: set[int] = set()
+        self._stale_logged: set[tuple[str, str]] = set()
+
+    def league_active(self, league: League, now: datetime) -> bool:
+        """Excluded leagues are only polled while an upcoming game still has entries waiting for a close."""
+        if league.key not in self.s.excluded_leagues:
+            return True
+        return any(k >= now for k in self.ledger.pending_kickoffs(league.key))
 
     # ---- one league ------------------------------------------------------
     def collect(self, league: League, now: datetime, stats: CycleStats) -> list[MatchedGame]:
@@ -64,7 +74,10 @@ class Engine:
                 log.exception("%s fetch failed for %s", type(adapter).__name__, league.key)
         sharp_games = []
         try:
-            sharp_games = [g for g in self.sharp.fetch(league, now) if g.start and now - timedelta(hours=3) <= g.start <= now + timedelta(hours=self.s.lookahead_hours)]
+            self.sharp.set_pending(league.key, [k for k in self.ledger.pending_kickoffs(league.key) if k >= now])
+            fetched = [g for g in self.sharp.fetch(league, now) if g.start and now - timedelta(hours=3) <= g.start <= now + timedelta(hours=self.s.lookahead_hours)]
+            self._sharp_ts[league.key] = self.sharp.fetched_at(league.key)
+            sharp_games = self._drop_stale_lines(league, fetched, now)
         except Exception:  # noqa: BLE001
             stats.errors += 1
             log.exception("sharp fetch failed for %s", league.key)
@@ -81,6 +94,23 @@ class Engine:
             "with_sharp": sum(1 for g in games if g.sharp and g.sharp.sharp and g.venues),
         }
         return games
+
+    def _drop_stale_lines(self, league: League, games: list, now: datetime) -> list:
+        """Pinnacle/soft prices older than MAX_SHARP_AGE_MINUTES (budget exhausted, outage) are not a fair reference:
+        keep the events for matching but strip the lines so no entry or closing capture uses them."""
+        if not games or not self.sharp.available:
+            return games
+        ts = self._sharp_ts.get(league.key)
+        limit = timedelta(minutes=self.s.max_sharp_age_minutes)
+        if ts is not None and now - ts <= limit:
+            return games
+        k = (league.key, now.strftime("%Y-%m-%d"))
+        if k not in self._stale_logged:
+            self._stale_logged.add(k)
+            age = "never" if ts is None else f"{(now - ts).total_seconds() / 60:.0f} min ago"
+            log.warning("Pinnacle data for %s is stale (last sample %s > MAX_SHARP_AGE_MINUTES=%g): no new entries or closes from it until a fresh poll",
+                        league.key, age, self.s.max_sharp_age_minutes)
+        return [replace(g, sharp=None, soft={}) for g in games]
 
     def process_game(self, game: MatchedGame, now: datetime, stats: CycleStats) -> None:
         game.key = self.ledger.resolve_game_key(game.league, game.teams, game.start, game.key, self.s.match_window_hours)
@@ -103,8 +133,9 @@ class Engine:
         # closing capture: keep overwriting until kickoff; last pre-start value is the close
         if game.start and now < game.start:
             if sf:
+                sampled = self._sharp_ts.get(game.league) or now  # when Pinnacle was actually polled, not this cycle
                 for k, p in sf.items():
-                    self.ledger.capture_closing(game.key, k, "pinnacle", p, now)
+                    self.ledger.capture_closing(game.key, k, "pinnacle", p, min(sampled, now))
             cf = consensus_fair(game)
             if cf:
                 for k, p in cf.items():
@@ -159,10 +190,14 @@ class Engine:
     def soft_book_entries(self, game: MatchedGame, now: datetime, stats: CycleStats) -> None:
         if not (self.s.soft_entries and game.sharp and game.sharp.sharp and game.sharp.soft):
             return
+        if game.league in self.s.excluded_leagues:
+            return
         if game.start and game.start - now < timedelta(minutes=self.s.min_minutes_before_start):
             return
         fair = game.sharp.sharp.fair
         for book, line in game.sharp.soft.items():
+            if not entry_allowed(game.league, book, self.s):
+                continue
             for k, odds in line.odds.items():
                 if k not in fair:
                     continue
@@ -190,6 +225,47 @@ class Engine:
                                        f"Pinnacle fair {fair[k]:.3f} (odds {1/fair[k]:.2f}); EV {ev:+.2%}", {"entry_id": eid}))
 
     # ---- post-start bookkeeping -----------------------------------------
+    def _pinnacle_close(self, e, start: datetime, now: datetime) -> tuple[float | None, str]:
+        """(close fair prob of the YES side of the outcome, reason if none). A close only counts when the last
+        Pinnacle sample is within CLOSE_MAX_AGE_MINUTES of kickoff."""
+        k = e["outcome_key"]
+        max_age = timedelta(minutes=self.s.close_max_age_minutes)
+        reason = ""
+        row = self.ledger.closing_row(e["game_key"], k, "pinnacle")
+        if row is not None:
+            value, at = row
+            if max_age.total_seconds() <= 0 or (at is not None and at >= start - max_age):
+                return value, ""
+            gap = "unknown time" if at is None else f"{(start - at).total_seconds() / 60:.0f} min before kickoff"
+            reason = f"last Pinnacle sample was {gap} (CLOSE_MAX_AGE_MINUTES={self.s.close_max_age_minutes:g})"
+        if self.sharp.available and e["id"] not in self._hist_tried:
+            g = self.ledger.game(e["game_key"])
+            ref = json.loads(g["refs"] or "{}").get("sharp") if g else None
+            league = next((l for l in self.leagues if l.key == e["league"]), None)
+            if ref and league and self.s.odds_api_historical:
+                back = self.sharp.closing(league, ref, start, now)
+                if not self.sharp.closing_blocked:
+                    self._hist_tried.add(e["id"])
+                if back and back.sharp and k in back.sharp.fair:
+                    value = back.sharp.fair[k]
+                    self.ledger.capture_closing(e["game_key"], k, "pinnacle", value, start - timedelta(minutes=1))
+                    return value, ""
+                reason = (reason + "; " if reason else "") + ("historical backfill found nothing" if not self.sharp.closing_blocked else "historical backfill blocked by credit budget")
+        if reason:
+            return None, reason
+        if not self.sharp.available:
+            return None, f"no Pinnacle feed ({getattr(self.sharp, 'reason', self.sharp.name)})"
+        league = next((l for l in self.leagues if l.key == e["league"]), None)
+        if league is None:
+            return None, f"league {e['league']} is not in LEAGUES (not polled)"
+        if not league.odds_api_sport:
+            return None, f"league {league.key} has no Odds API sport key"
+        skipped = getattr(getattr(self.sharp, "quota", None), "usage", None)
+        skipped_n = skipped(now)["skipped"] if skipped else 0
+        if skipped_n:
+            return None, f"no Pinnacle sample for this game ({skipped_n} Odds API polls skipped today by the credit budget; ODDS_API_HISTORICAL=0)"
+        return None, "no Pinnacle line was ever sampled for this game (event not matched in the Odds API feed, or entry opened after the last poll)"
+
     def finalize_clv(self, now: datetime) -> int:
         n = 0
         for e in self.ledger.entries("clv_status != 'done'"):
@@ -198,16 +274,7 @@ class Engine:
                 continue
             k, side = e["outcome_key"], e["side"]
             flip = (lambda x: x) if side == "yes" else (lambda x: 1.0 - x)
-            close = self.ledger.closing(e["game_key"], k, "pinnacle")
-            if close is None and self.sharp.available:
-                g = self.ledger.game(e["game_key"])
-                ref = json.loads(g["refs"] or "{}").get("sharp") if g else None
-                league = next((l for l in self.leagues if l.key == e["league"]), None)
-                if ref and league:
-                    back = self.sharp.closing(league, ref, start)
-                    if back and back.sharp and k in back.sharp.fair:
-                        close = back.sharp.fair[k]
-                        self.ledger.capture_closing(e["game_key"], k, "pinnacle", close, start)
+            close, why = self._pinnacle_close(e, start, now)
             fields = {}
             vm = self.ledger.closing(e["game_key"], k, e["venue"]) if e["venue"] in ("polymarket", "kalshi") else None
             if vm is not None:
@@ -219,6 +286,10 @@ class Engine:
                               clv_pct_raw=round(c / e["avg_price"] - 1, 6), clv_status="done")
             else:
                 fields["clv_status"] = "pending_sharp"
+                if e["id"] not in self._missing_logged:
+                    self._missing_logged.add(e["id"])
+                    log.warning("Pinnacle close NOT captured: entry #%s %s %s %s %s | %s | kickoff %s | %s",
+                                e["id"], e["league"], e["venue"], e["side"].upper(), e["outcome_label"], e["game_label"], e["start_time"], why)
             self.ledger.update_entry(e["id"], **fields)
             n += 1
         return n
@@ -253,6 +324,8 @@ class Engine:
         t0 = time.monotonic()
         stats = CycleStats()
         for league in self.leagues:
+            if not self.league_active(league, now):
+                continue
             for game in self.collect(league, now, stats):
                 try:
                     self.process_game(game, now, stats)
@@ -263,6 +336,11 @@ class Engine:
         settled = self.settle(now)
         secs = time.monotonic() - t0
         note = f"sharp={self.sharp.name}; clv_updates={clv}; settled={settled}"
+        quota = getattr(self.sharp, "quota", None)
+        if quota is not None:
+            u = quota.usage(now)
+            note += (f"; credits_today={u['credits']:.0f}/{self.s.odds_api_daily_budget} calls={u['requests']} skipped={u['skipped']}"
+                     f" remaining={quota.last_remaining if quota.last_remaining is not None else 'n/a'}")
         self.ledger.add_run(seconds=round(secs, 2), games=stats.games, venue_games=stats.venue_games, sharp_games=stats.sharp_games,
                             entries=stats.entries, arbs=stats.arbs, errors=stats.errors, note=note)
         log.info("cycle %.1fs games=%d venue_games=%d cross=%d sharp=%d entries=%d arbs=%d errors=%d %s",
@@ -284,7 +362,7 @@ class Engine:
         target = Path(self.s.report_dir) / f"weekly-{local:%Y-%m-%d}.md"
         if target.exists():
             return None
-        path = write_weekly(self.ledger, self.s.report_dir, now, self.s.report_tz)
+        path = write_weekly(self.ledger, self.s.report_dir, now, self.s.report_tz, self.s)
         self.alerts.emit(Alert("system", f"weekly:{local:%Y-%m-%d}", f"Weekly CLV paper report written: {path}"))
         return str(path)
 
@@ -296,8 +374,17 @@ class Engine:
         signal.signal(signal.SIGTERM, _stop)
         signal.signal(signal.SIGINT, _stop)
         if not self.sharp.available:
-            log.warning("No sharp feed (%s): entries use cross-venue consensus when ENTRY_REFERENCE=auto; Pinnacle CLV stays pending.",
-                        getattr(self.sharp, "reason", self.sharp.name))
+            log.warning("No sharp feed (%s): Pinnacle CLV stays pending%s.", getattr(self.sharp, "reason", self.sharp.name),
+                        "; REQUIRE_PINNACLE_REF=1 so no new paper entries are opened (consensus entries are off)" if self.s.require_pinnacle_ref
+                        else "; entries use cross-venue consensus when ENTRY_REFERENCE=auto")
+        elif hasattr(self.sharp, "quota"):
+            from .sharp.quota import format_plan
+
+            active = [lg for lg in self.leagues if lg.key not in self.s.excluded_leagues]
+            log.info(format_plan(self.s, len(active)))
+        log.info("Entry filters: MIN_EDGE=%.1f%% after fees vs Pinnacle (REQUIRE_PINNACLE_REF=%s), MIN_DEPTH_USD=%g, full fill of STAKE_USD=%g required; "
+                 "excluded leagues=%s venues=%s", self.s.min_edge * 100, int(self.s.require_pinnacle_ref), self.s.min_depth_usd,
+                 self.s.stake_usd, ",".join(self.s.excluded_leagues) or "-", ",".join(self.s.excluded_venues) or "-")
         while not self._stop:
             try:
                 self.cycle()

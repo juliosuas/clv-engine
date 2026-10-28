@@ -1,7 +1,7 @@
 # clv-engine — paper-only odds / CLV tracker
 
-Tracks **Polymarket** and **Kalshi** sports moneylines (Liga MX first, then Premier League, La Liga,
-Champions League, NBA) against **Pinnacle's de-vigged price and closing line**. It writes simulated
+Tracks **Polymarket** and **Kalshi** sports moneylines (NBA, NFL, Premier League, La Liga, Liga MX; Champions League
+excluded for now) against **Pinnacle's de-vigged price and closing line**. It writes simulated
 ("paper") entries to SQLite, scans for fee-aware arbitrage, sends alerts and writes weekly reports.
 
 > **PAPER ONLY.** Zero real money. No wallet, no private keys, no exchange API keys, no order or
@@ -75,7 +75,7 @@ that `quadratic` / `quadratic_with_maker_fees` share the general taker table.
 ## Running without The Odds API (today)
 
 Leave `ODDS_API_KEY` empty (or `SHARP_SOURCE=none`). Everything else still runs: discovery, books, matching, quote history,
-venue closing mids, arbitrage, alerts, consensus-referenced entries, settlement, reports. Pinnacle CLV stays
+venue closing mids, arbitrage, alerts, settlement, reports. Pinnacle CLV stays
 `pending_sharp`. If you later set `ODDS_API_HISTORICAL=1` (paid plan), missing closes are backfilled from
 `/v4/historical/sports/{sport}/events/{id}/odds`, but only for games where the engine stored the Odds API event id,
 so for games before the key existed the Pinnacle CLV stays pending.
@@ -83,9 +83,54 @@ so for games before the key existed the Pinnacle CLV stays pending.
 Note: The Odds API has **no Caliente** and only **Codere Italy (`codere_it`)**, not Codere MX (bookmaker list checked
 2026-10-18). The soft-book adapter is generic (`SOFT_BOOKS=` any Odds API keys). Getting Caliente would need another source.
 
-Credit budget: one `/odds` call per league costs 1 credit (h2h × 1 region-equivalent for ≤10 bookmakers). At
-`SHARP_POLL_SECONDS=900` plus `SHARP_CLOSE_POLL_SECONDS=120` near kickoffs, that's roughly 100–200 calls per league per day,
-or about 15–30k credits/month for 5 leagues. That's within the 100k plan, but check your tier.
+## Pinnacle close capture and the Odds API credit budget
+
+One `/odds` call per sport returns every event, so the scheduler works per league. Cost per call = markets × regions
+(h2h × 1 region for ≤10 bookmakers; more `SOFT_BOOKS` can add a region). Cadence depends on the time to the nearest kickoff:
+
+| tier | when | interval (env) |
+|---|---|---|
+| close | within `CLOSE_CAPTURE_MINUTES` (30) of a kickoff that has a pending entry | `SHARP_CLOSE_POLL_SECONDS` (120) |
+| near | within `NEAR_WINDOW_MINUTES` (180) | `SHARP_NEAR_POLL_SECONDS` (600) |
+| far | within `IDLE_AFTER_MINUTES` (720) | `SHARP_POLL_SECONDS` (900) |
+| idle | otherwise | `SHARP_IDLE_POLL_SECONDS` (3600) |
+
+- The effective interval is never shorter than `POLL_SECONDS`. `python3 -m clv_engine quota` prints the estimated
+  credits/day and /30 days for the configured leagues, plus today's local usage (no network).
+- **Budget:** `ODDS_API_DAILY_BUDGET` (default 1000, a planning number, **not** a verified plan limit) is a hard cap per UTC day,
+  persisted in the ledger (`api_usage`). Non-close polls stop at `(1 - ODDS_API_CLOSE_RESERVE)` of it so the close window keeps
+  credits. The `x-requests-remaining` / `x-requests-used` / `x-requests-last` response headers are read on every call; at or
+  below `ODDS_API_MIN_REMAINING` only close polls run, at 0 nothing runs. When polls are skipped the engine keeps using cached
+  lines, but Pinnacle data older than `MAX_SHARP_AGE_MINUTES` is discarded for entries and closes.
+- A Pinnacle close only counts if it was actually fetched within `CLOSE_MAX_AGE_MINUTES` of kickoff (`closing.captured_at` is the
+  fetch time). Every entry whose close could not be captured gets one `WARNING` line with the reason
+  (`Pinnacle close NOT captured: entry #… | reason`).
+- **Unverified:** the real plan size and reset period of your Odds API key. Set `ODDS_API_DAILY_BUDGET` from what the dashboard
+  shows. Earlier README text that said "within the 100k plan" was an assumption and has been removed.
+- Historical backfill (`ODDS_API_HISTORICAL=1`) costs 10× per call, is budgeted the same way and tried once per entry.
+
+## Entry filters (defaults, all env-configurable)
+
+- `MIN_EDGE=0.05`: at least 5% edge vs Pinnacle no-vig fair, **after fees** (the edge uses `effective_price`).
+- `REQUIRE_PINNACLE_REF=1`: entries need a fresh Pinnacle reference (no consensus fallback). Consequence: **with no
+  `ODDS_API_KEY` no new entries are opened**; set it to 0 to bring back the `ENTRY_REFERENCE=auto` fallback.
+- `MIN_DEPTH_USD=250` of ask depth within `DEPTH_TOLERANCE=0.01` of the best ask, and the full `STAKE_USD` fill is required.
+- `EXCLUDED_LEAGUES=ucl` and `EXCLUDED_VENUES=kalshi`: temporarily excluded from entries (Kalshi is still fetched for venue CLV
+  and arbs; an excluded league is only polled while it has a pending entry awaiting its close). Existing rows are never changed.
+- League priority: `LEAGUES=nba,nfl,epl,laliga,ligamx,ucl`. NFL is supported by both venue adapters (Polymarket series 12185,
+  Kalshi `KXNFLGAME`, recorded fixtures 2026-10-27). The Pinnacle NFL feed (`americanfootball_nfl`) has only been exercised with
+  a synthetic fixture because no key is available.
+
+## Status and graduation
+
+```bash
+python3 -m clv_engine status [--json]       # entries with Pinnacle close, settled, mean CLV, 90% CI, entries/day, days to 300
+python3 -m clv_engine graduation [--json]   # proposed paper->real gate; reporting only
+```
+
+`status` reports "insufficient data" instead of a projection until there are ≥10 measured entries over ≥2 days. The gate and the
+proposed real-phase risk limits are in [`docs/GRADUATION.md`](docs/GRADUATION.md): proposals for Julio to approve, not facts, and
+nothing in this repo places real orders.
 
 ## Quick start
 
@@ -99,6 +144,9 @@ python3 -m clv_engine report summary --days 7
 python3 -m clv_engine report weekly             # writes reports/weekly-YYYY-MM-DD.md
 python3 -m clv_engine report entries            # raw entries as JSON lines
 python3 -m clv_engine settle                    # finalize CLV + settle finished games now
+python3 -m clv_engine status                    # measured sample, mean CLV + CI, projection to 300
+python3 -m clv_engine graduation                # proposed paper->real gate (reporting only)
+python3 -m clv_engine quota                     # Odds API credit plan + today's usage
 ```
 
 Python ≥ 3.11, standard library only (`tzdata` optional, for report time zones on minimal images).
@@ -120,6 +168,7 @@ Tables:
 - `games`: matched games and venue refs.
 - `alerts`: dedupe state.
 - `runs`: per-cycle health.
+- `api_usage`: Odds API requests/credits/skipped polls per UTC day.
 
 ## Tests
 
@@ -128,7 +177,7 @@ python3 -m venv .venv && .venv/bin/pip install pytest
 .venv/bin/pytest -q
 ```
 
-Tests run on recorded fixtures (`tests/fixtures/`, captured from the live public APIs on 2026-10-18 and trimmed).
+Tests run on recorded fixtures (`tests/fixtures/`, captured from the live public APIs on 2026-10-18 and 2026-10-27 (NFL) and trimmed).
 `oddsapi_odds_synthetic.json` is hand-written in the documented v4 shape, because no key exists yet. A fixture blocks all sockets,
 so tests can never hit the network.
 
@@ -187,6 +236,8 @@ clv_engine/
   venues/kalshi.py       public events + orderbooks + series fee multiplier (GET only)
   sharp/                 SharpSource interface; none | theoddsapi (Pinnacle + soft books)
   devig.py fees.py orderbook.py teams.py (+ data/team_aliases.json) matching.py
+  sharp/quota.py         credit tiers, budget tracker, plan estimate
+  graduation.py          status + graduation gate (reporting only)
   strategy.py arb.py ledger.py alerts.py engine.py report.py cli.py config.py
 tests/                   pytest, recorded fixtures, no network
 deploy/                  systemd unit

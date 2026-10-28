@@ -13,7 +13,10 @@ from clv_engine.venues.polymarket import PolymarketAdapter
 
 
 def settings(**kw):
-    s = Settings(db_path=":memory:", leagues=["ligamx", "nba"], alert_sinks=[], snapshot_min_seconds=0)
+    # Legacy-permissive baseline: these tests predate the stricter defaults (5% edge, depth, Pinnacle-only,
+    # UCL/Kalshi excluded); the new defaults are exercised in test_entry_filters.py.
+    s = Settings(db_path=":memory:", leagues=["ligamx", "nba"], alert_sinks=[], snapshot_min_seconds=0,
+                 min_edge=0.02, require_pinnacle_ref=False, min_depth_usd=0, excluded_leagues=[], excluded_venues=[])
     for k, v in kw.items():
         setattr(s, k, v)
     return s
@@ -64,7 +67,7 @@ def test_sharp_reference_entry_clv_and_settlement(http, now):
     eng.cycle(now + timedelta(minutes=2))
     assert len(eng.ledger.entries("venue='polymarket' AND outcome_key='necaxa'")) == 1
     # closing captured pre-kickoff; CLV computed after kickoff
-    eng.ledger.capture_closing(e["game_key"], "necaxa", "pinnacle", 0.20)
+    eng.ledger.capture_closing(e["game_key"], "necaxa", "pinnacle", 0.20, now + timedelta(days=2) - timedelta(minutes=2))
     eng.finalize_clv(now + timedelta(days=4))
     e2 = eng.ledger.entries(f"id={e['id']}")[0]
     assert e2["clv_status"] == "done"

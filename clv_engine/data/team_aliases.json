@@ -733,5 +733,212 @@
       "washington",
       "was"
     ]
+  },
+  "nfl": {
+    "ari": [
+      "arizona cardinals",
+      "cardinals",
+      "arizona",
+      "ari"
+    ],
+    "atl": [
+      "atlanta falcons",
+      "falcons",
+      "atlanta",
+      "atl"
+    ],
+    "bal": [
+      "baltimore ravens",
+      "ravens",
+      "baltimore",
+      "bal"
+    ],
+    "buf": [
+      "buffalo bills",
+      "bills",
+      "buffalo",
+      "buf"
+    ],
+    "car": [
+      "carolina panthers",
+      "panthers",
+      "carolina",
+      "car"
+    ],
+    "chi": [
+      "chicago bears",
+      "bears",
+      "chicago",
+      "chi"
+    ],
+    "cin": [
+      "cincinnati bengals",
+      "bengals",
+      "cincinnati",
+      "cin"
+    ],
+    "cle": [
+      "cleveland browns",
+      "browns",
+      "cleveland",
+      "cle"
+    ],
+    "dal": [
+      "dallas cowboys",
+      "cowboys",
+      "dallas",
+      "dal"
+    ],
+    "den": [
+      "denver broncos",
+      "broncos",
+      "denver",
+      "den"
+    ],
+    "det": [
+      "detroit lions",
+      "lions",
+      "detroit",
+      "det"
+    ],
+    "gb": [
+      "green bay packers",
+      "packers",
+      "green bay",
+      "gb",
+      "gb packers"
+    ],
+    "hou": [
+      "houston texans",
+      "texans",
+      "houston",
+      "hou"
+    ],
+    "ind": [
+      "indianapolis colts",
+      "colts",
+      "indianapolis",
+      "ind"
+    ],
+    "jax": [
+      "jacksonville jaguars",
+      "jaguars",
+      "jacksonville",
+      "jax",
+      "jac"
+    ],
+    "kc": [
+      "kansas city chiefs",
+      "chiefs",
+      "kansas city",
+      "kc"
+    ],
+    "lac": [
+      "los angeles chargers",
+      "la chargers",
+      "chargers",
+      "los angeles c",
+      "lac"
+    ],
+    "lar": [
+      "los angeles rams",
+      "la rams",
+      "rams",
+      "los angeles r",
+      "lar"
+    ],
+    "lv": [
+      "las vegas raiders",
+      "raiders",
+      "las vegas",
+      "lv",
+      "lv raiders"
+    ],
+    "mia": [
+      "miami dolphins",
+      "dolphins",
+      "miami",
+      "mia"
+    ],
+    "min": [
+      "minnesota vikings",
+      "vikings",
+      "minnesota",
+      "min"
+    ],
+    "ne": [
+      "new england patriots",
+      "patriots",
+      "new england",
+      "ne",
+      "new england pats",
+      "pats"
+    ],
+    "no": [
+      "new orleans saints",
+      "saints",
+      "new orleans",
+      "no"
+    ],
+    "nyg": [
+      "new york giants",
+      "ny giants",
+      "giants",
+      "new york g",
+      "nyg"
+    ],
+    "nyj": [
+      "new york jets",
+      "ny jets",
+      "jets",
+      "new york j",
+      "nyj"
+    ],
+    "phi": [
+      "philadelphia eagles",
+      "eagles",
+      "philadelphia",
+      "phi"
+    ],
+    "pit": [
+      "pittsburgh steelers",
+      "steelers",
+      "pittsburgh",
+      "pit"
+    ],
+    "sea": [
+      "seattle seahawks",
+      "seahawks",
+      "seattle",
+      "sea"
+    ],
+    "sf": [
+      "san francisco 49ers",
+      "49ers",
+      "san francisco",
+      "sf",
+      "san francisco niners",
+      "niners"
+    ],
+    "tb": [
+      "tampa bay buccaneers",
+      "buccaneers",
+      "tampa bay",
+      "tb",
+      "bucs",
+      "tampa"
+    ],
+    "ten": [
+      "tennessee titans",
+      "titans",
+      "tennessee",
+      "ten"
+    ],
+    "was": [
+      "washington commanders",
+      "commanders",
+      "washington",
+      "was"
+    ]
   }
 }

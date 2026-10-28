@@ -6,12 +6,12 @@ from .base import NoSharpSource, SharpSource
 from .theoddsapi import TheOddsApiSource
 
 
-def make_sharp_source(settings, http) -> SharpSource:
+def make_sharp_source(settings, http, ledger=None) -> SharpSource:
     src = (settings.sharp_source or "none").lower()
     if src == "theoddsapi":
         if not settings.odds_api_key:
             return NoSharpSource(reason="SHARP_SOURCE=theoddsapi but ODDS_API_KEY is not set")
-        return TheOddsApiSource(http, settings.odds_api_key, settings)
+        return TheOddsApiSource(http, settings.odds_api_key, settings, ledger)
     return NoSharpSource(reason=f"SHARP_SOURCE={src}")
 
 

@@ -16,7 +16,9 @@ from .http import Http
 from .leagues import LEAGUES, get_leagues
 from .ledger import Ledger
 from .matching import match_games
+from .graduation import format_graduation, format_status, graduation, status, to_json
 from .report import format_summary, summary, write_weekly
+from .sharp.quota import format_plan
 from .sharp import make_sharp_source
 from .strategy import consensus_fair, sharp_fair
 from .util import utc_now
@@ -31,7 +33,7 @@ def build(settings: Settings, ledger: Ledger | None = None, alerts: AlertManager
         settings, ledger,
         PolymarketAdapter(http, fetch_no_books=settings.fetch_no_books),
         KalshiAdapter(http, fee_rounding=settings.kalshi_fee_rounding),
-        make_sharp_source(settings, http),
+        make_sharp_source(settings, http, ledger),
         alerts or make_alerts(settings, ledger),
     )
 
@@ -108,6 +110,11 @@ def main(argv: list[str] | None = None) -> int:
     rep.add_argument("kind", choices=["summary", "weekly", "entries"])
     rep.add_argument("--days", type=float, default=None, help="summary: only entries created in the last N days")
     rep.add_argument("--out", default=None, help="weekly: output dir (default REPORT_DIR)")
+    st = sub.add_parser("status", help="measured-sample status: Pinnacle closes, mean CLV + CI, entries/day, days to target")
+    st.add_argument("--json", action="store_true")
+    gr = sub.add_parser("graduation", help="paper->real graduation check against the proposed numeric gate (reporting only)")
+    gr.add_argument("--json", action="store_true")
+    sub.add_parser("quota", help="Odds API credit plan estimate and today's local usage (no network)")
     sub.add_parser("settle", help="finalize CLV and settle finished games")
     sub.add_parser("init-db", help="create the SQLite schema")
     sub.add_parser("test-alert", help="send one test message through every configured sink; exit 1 if one fails")
@@ -124,12 +131,27 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "init-db":
         print(f"ledger ready at {settings.db_path}")
         return 0
+    if args.cmd == "status":
+        res = status(ledger, settings)
+        print(to_json(res) if args.json else format_status(res))
+        return 0
+    if args.cmd == "graduation":
+        res = graduation(ledger, settings)
+        print(to_json(res) if args.json else format_graduation(res))
+        return 0
+    if args.cmd == "quota":
+        active = [lg for lg in get_leagues(settings.leagues) if lg.key not in settings.excluded_leagues]
+        print(format_plan(settings, len(active)))
+        u = ledger.usage(utc_now().strftime("%Y-%m-%d"))
+        print(f"today (UTC, local count): {u['credits']:.0f}/{settings.odds_api_daily_budget} credits, {u['requests']} calls, {u['skipped']} skipped, "
+              f"last x-requests-remaining={u['remaining']}")
+        return 0
     if args.cmd == "report":
         if args.kind == "summary":
             since = utc_now() - timedelta(days=args.days) if args.days else None
             print(format_summary(summary(ledger, since)))
         elif args.kind == "weekly":
-            path = write_weekly(ledger, args.out or settings.report_dir, tz_name=settings.report_tz)
+            path = write_weekly(ledger, args.out or settings.report_dir, tz_name=settings.report_tz, settings=settings)
             print(path)
         else:
             for e in ledger.entries():

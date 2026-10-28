@@ -39,8 +39,14 @@ class Http:
         self.calls = 0
 
     def get_json(self, url: str, params: Any = None, headers: dict[str, str] | None = None) -> Any:
+        return self.get_json_meta(url, params, headers)[0]
+
+    def get_json_meta(self, url: str, params: Any = None, headers: dict[str, str] | None = None) -> tuple[Any, dict[str, str]]:
+        """GET -> (parsed JSON or None, lower-cased response headers). Headers are returned on HTTP errors too
+        (e.g. a 429 from The Odds API still carries x-requests-remaining)."""
         full = build_url(url, params)
         req = urllib.request.Request(full, headers={"User-Agent": USER_AGENT, "Accept": "application/json", **(headers or {})})
+        resp_headers: dict[str, str] = {}
         for attempt in range(self.retries + 1):
             wait = self.min_interval - (time.monotonic() - self._last)
             if wait > 0:
@@ -49,21 +55,23 @@ class Http:
             self.calls += 1
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    resp_headers = {k.lower(): v for k, v in resp.headers.items()}
                     raw = resp.read()
-                    return json.loads(raw) if raw else None
+                    return (json.loads(raw) if raw else None), resp_headers
             except urllib.error.HTTPError as exc:
+                resp_headers = {k.lower(): v for k, v in (exc.headers or {}).items()}
                 if exc.code in (429, 500, 502, 503, 504) and attempt < self.retries:
                     time.sleep(1.5 * (attempt + 1))
                     continue
                 log.warning("GET %s -> HTTP %s", _redact(full), exc.code)
-                return None
+                return None, resp_headers
             except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
                 if attempt < self.retries:
                     time.sleep(1.0 * (attempt + 1))
                     continue
                 log.warning("GET %s failed: %s", _redact(full), exc)
-                return None
-        return None
+                return None, resp_headers
+        return None, resp_headers
 
 
 def _redact(url: str) -> str:

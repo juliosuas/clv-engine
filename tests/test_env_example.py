@@ -49,4 +49,23 @@ def test_env_example_loads_clean_values(monkeypatch):
         monkeypatch.setenv(key, value)
     s = Settings.from_env(dotenv=None)
     assert s.sharp_source == "none" and s.poll_seconds == 120
-    assert s.leagues == ["ligamx", "epl", "laliga", "ucl", "nba"]
+    assert s.leagues == ["nba", "nfl", "epl", "laliga", "ligamx", "ucl"]
+    assert s.excluded_leagues == ["ucl"] and s.excluded_venues == ["kalshi"]
+    assert s.min_edge == 0.05 and s.require_pinnacle_ref is True and s.min_depth_usd == 250
+    assert s.odds_api_daily_budget == 1000 and s.close_capture_minutes == 30
+
+
+def test_env_example_matches_code_defaults(monkeypatch):
+    """Every KEY in .env.example that Settings reads must equal the dataclass default (no drift)."""
+    from dataclasses import asdict
+
+    from clv_engine.config import Settings
+    for _, line in value_lines(ROOT / ".env.example"):
+        key, _, value = line.partition("=")
+        monkeypatch.setenv(key, value)
+    from_example, defaults = asdict(Settings.from_env(dotenv=None)), asdict(Settings())
+    for key in ("excluded_leagues", "excluded_venues", "min_edge", "require_pinnacle_ref", "min_depth_usd", "depth_tolerance",
+                "odds_api_daily_budget", "odds_api_close_reserve", "odds_api_min_remaining", "max_sharp_age_minutes", "close_max_age_minutes",
+                "sharp_near_poll_seconds", "sharp_idle_poll_seconds", "near_window_minutes", "idle_after_minutes", "leagues",
+                "grad_min_entries", "grad_ci_level", "grad_min_venues", "grad_min_leagues", "grad_max_league_share"):
+        assert from_example[key] == defaults[key], key
