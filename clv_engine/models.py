@@ -46,6 +46,14 @@ class OutcomeQuote:
         return a if a is not None else b
 
 
+    @property
+    def mid2(self) -> float | None:
+        """Mid of a two-sided book only. `mid` falls back to the lone ask/bid, which is not a mid (it biases references and closes
+        by up to a full spread); references and closing prices use this instead."""
+        a, b = self.best_ask, self.best_bid
+        return (a + b) / 2 if a is not None and b is not None else None
+
+
 @dataclass
 class VenueGame:
     venue: str  # "polymarket" | "kalshi"

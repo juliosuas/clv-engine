@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS entries (
     clv_pct REAL,                   -- sharp_fair_close / effective_price - 1 (after fees)
     clv_pct_raw REAL,               -- sharp_fair_close / avg_price - 1 (before fees)
     venue_clv_pct REAL,             -- venue_mid_close / avg_price - 1
-    clv_status TEXT NOT NULL DEFAULT 'pending_close',   -- pending_close | pending_sharp | done
+    clv_status TEXT NOT NULL DEFAULT 'pending_close',   -- pending_close | pending_sharp | no_close | done
     settle_venue TEXT,
     settle_ref TEXT,
     status TEXT NOT NULL DEFAULT 'open',                -- open | settled
@@ -116,6 +116,15 @@ CREATE TABLE IF NOT EXISTS runs (
 """
 
 
+# Sensitivity closes: the same Pinnacle sample de-vigged with each method, stored next to the primary
+# ('pinnacle', DEVIG_METHOD) close so reports can show CLV under both (see docs/GRADUATION.md).
+ALT_CLOSE_METHODS = ("power", "multiplicative")
+
+
+def alt_close_source(method: str) -> str:
+    return f"pinnacle_{method}"
+
+
 class Ledger:
     def __init__(self, path: str):
         if path != ":memory:":
@@ -163,6 +172,11 @@ class Ledger:
     def count_entries(self, game_key: str, venue: str, outcome_key: str, side: str) -> int:
         return self.conn.execute("SELECT COUNT(*) FROM entries WHERE game_key=? AND venue=? AND outcome_key=? AND side=?",
                                  (game_key, venue, outcome_key, side)).fetchone()[0]
+
+    def count_entries_any_venue(self, game_key: str, outcome_key: str, side: str) -> int:
+        """Entries on the real venues (not soft books) for one game/outcome/side, whatever the venue."""
+        return self.conn.execute("SELECT COUNT(*) FROM entries WHERE game_key=? AND outcome_key=? AND side=? AND venue IN ('polymarket','kalshi')",
+                                 (game_key, outcome_key, side)).fetchone()[0]
 
     def add_entry(self, **e: Any) -> int:
         e.setdefault("created_at", iso(utc_now()))

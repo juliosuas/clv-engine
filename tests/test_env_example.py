@@ -67,5 +67,5 @@ def test_env_example_matches_code_defaults(monkeypatch):
     for key in ("excluded_leagues", "excluded_venues", "min_edge", "require_pinnacle_ref", "min_depth_usd", "depth_tolerance",
                 "odds_api_daily_budget", "odds_api_close_reserve", "odds_api_min_remaining", "max_sharp_age_minutes", "close_max_age_minutes",
                 "sharp_near_poll_seconds", "sharp_idle_poll_seconds", "near_window_minutes", "idle_after_minutes", "leagues",
-                "grad_min_entries", "grad_ci_level", "grad_min_venues", "grad_min_leagues", "grad_max_league_share"):
+                "grad_min_games", "grad_ci_level", "grad_min_venues", "grad_min_leagues", "grad_max_league_share"):
         assert from_example[key] == defaults[key], key

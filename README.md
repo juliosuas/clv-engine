@@ -121,6 +121,16 @@ One `/odds` call per sport returns every event, so the scheduler works per leagu
   Kalshi `KXNFLGAME`, recorded fixtures 2026-10-27). The Pinnacle NFL feed (`americanfootball_nfl`) has only been exercised with
   a synthetic fixture because no key is available.
 
+## Edge vs venue-CLV audit
+
+`python3 -m clv_engine audit [--dump rows.json]` decomposes why the declared entry edge (reference / all-in price - 1, fee
+included) can be positive while `venue_clv_pct` (own venue's close mid / avg price - 1, no fee) is negative: the gap is exactly
+(reference -> close price move) x (fee factor). `venue_clv_pct` is own-venue drift, not CLV. Fixes on this branch: a mid needs
+both sides of the book (`OutcomeQuote.mid2`) for references and closes; equivalent bets in a two-way market (YES A == NO B)
+count as one entry; opposite bets on a game are not opened (`ALLOW_HEDGED_ENTRIES=0`). `no_close` is a `clv_status` for entries
+whose Pinnacle close could not be captured; they are excluded from the measured sample. Graduation counts distinct games
+(`GRAD_MIN_GAMES`, `GRAD_MIN_GROUP_GAMES`, `GRAD_DEADLINE`); paper fills are always taker. See `docs/GRADUATION.md`.
+
 ## Status and graduation
 
 ```bash

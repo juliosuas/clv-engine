@@ -10,16 +10,17 @@ from datetime import datetime, timedelta
 
 from .alerts import AlertManager, StdoutSink, build_sinks, make_alerts, send_test_alert
 from .arb import cross_venue, multi_outcome
+from .audit import decompose, format_decomposition
 from .config import Settings
 from .engine import Engine
+from .graduation import format_graduation, format_status, graduation, status, to_json
 from .http import Http
 from .leagues import LEAGUES, get_leagues
 from .ledger import Ledger
 from .matching import match_games
-from .graduation import format_graduation, format_status, graduation, status, to_json
 from .report import format_summary, summary, write_weekly
-from .sharp.quota import format_plan
 from .sharp import make_sharp_source
+from .sharp.quota import format_plan
 from .strategy import consensus_fair, sharp_fair
 from .util import utc_now
 from .venues.kalshi import KalshiAdapter
@@ -114,6 +115,8 @@ def main(argv: list[str] | None = None) -> int:
     st.add_argument("--json", action="store_true")
     gr = sub.add_parser("graduation", help="paper->real graduation check against the proposed numeric gate (reporting only)")
     gr.add_argument("--json", action="store_true")
+    au = sub.add_parser("audit", help="why edge and venue CLV disagree: decomposition of the gap (read-only)")
+    au.add_argument("--dump", default=None, help="read entries from a JSON dump (list of rows) instead of the ledger")
     sub.add_parser("quota", help="Odds API credit plan estimate and today's local usage (no network)")
     sub.add_parser("settle", help="finalize CLV and settle finished games")
     sub.add_parser("init-db", help="create the SQLite schema")
@@ -127,7 +130,14 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_scan(settings, args)
     if args.cmd == "test-alert":
         return cmd_test_alert(settings)
+    if args.cmd == "audit" and args.dump:
+        with open(args.dump, encoding="utf-8") as fh:
+            print(format_decomposition(decompose(json.load(fh))))
+        return 0
     ledger = Ledger(settings.db_path)
+    if args.cmd == "audit":
+        print(format_decomposition(decompose(ledger.entries())))
+        return 0
     if args.cmd == "init-db":
         print(f"ledger ready at {settings.db_path}")
         return 0

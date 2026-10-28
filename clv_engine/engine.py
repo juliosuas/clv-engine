@@ -12,8 +12,9 @@ from datetime import datetime, timedelta
 from .alerts import Alert, AlertManager
 from .arb import cross_venue, multi_outcome
 from .config import Settings
+from .devig import devig
 from .leagues import League, get_leagues
-from .ledger import Ledger
+from .ledger import ALT_CLOSE_METHODS, Ledger, alt_close_source
 from .matching import match_games
 from .models import MatchedGame
 from .orderbook import depth
@@ -112,6 +113,19 @@ class Engine:
                         league.key, age, self.s.max_sharp_age_minutes)
         return [replace(g, sharp=None, soft={}) for g in games]
 
+    def _capture_alt_closes(self, game_key: str, line, at: datetime) -> None:
+        """Store the same Pinnacle sample de-vigged with each sensitivity method (power, multiplicative)."""
+        keys = list(line.odds)
+        if len(keys) < 2:
+            return
+        for method in ALT_CLOSE_METHODS:
+            try:
+                fair = dict(zip(keys, devig([line.odds[k] for k in keys], method)))
+            except ValueError:
+                continue
+            for k, p in fair.items():
+                self.ledger.capture_closing(game_key, k, alt_close_source(method), p, at)
+
     def process_game(self, game: MatchedGame, now: datetime, stats: CycleStats) -> None:
         game.key = self.ledger.resolve_game_key(game.league, game.teams, game.start, game.key, self.s.match_window_hours)
         start_source = "sharp" if game.sharp else ("polymarket" if "polymarket" in game.venues else "kalshi")
@@ -136,14 +150,15 @@ class Engine:
                 sampled = self._sharp_ts.get(game.league) or now  # when Pinnacle was actually polled, not this cycle
                 for k, p in sf.items():
                     self.ledger.capture_closing(game.key, k, "pinnacle", p, min(sampled, now))
+                self._capture_alt_closes(game.key, game.sharp.sharp, min(sampled, now))
             cf = consensus_fair(game)
             if cf:
                 for k, p in cf.items():
                     self.ledger.capture_closing(game.key, k, "consensus", p, now)
             for v, vg in game.venues.items():
                 for k, q in vg.outcomes.items():
-                    if q.mid is not None:
-                        self.ledger.capture_closing(game.key, k, v, q.mid, now)
+                    if q.mid2 is not None:  # a one-sided book has no mid: keep the last two-sided sample instead
+                        self.ledger.capture_closing(game.key, k, v, q.mid2, now)
 
         self.scan_arbs(game, stats)
         self.paper_entries(game, now, stats)
@@ -162,10 +177,30 @@ class Engine:
             self.alerts.emit(Alert("arb", key, f"{a.kind} {_label(game)}: +${a.profit:.2f} on ${a.cost:.2f} ({a.roi:.2%}) for {a.shares:.0f} sh",
                                    legs_txt + " | paper only; check settlement rules match", {"game": a.game_key, "legs": a.legs, "profit": a.profit}))
 
+    @staticmethod
+    def _equivalent_bets(game: MatchedGame, outcome: str, side: str) -> list[tuple[str, str]]:
+        """The same economic bet written another way. In a two-way market YES team A == NO team B (Kalshi lists both)."""
+        bets = [(outcome, side)]
+        if not game.three_way and len(game.teams) == 2 and outcome in game.teams:
+            other = next(t for t in game.teams if t != outcome)
+            bets.append((other, "no" if side == "yes" else "yes"))
+        return bets
+
+    def _duplicate_or_hedge(self, game: MatchedGame, venue: str, outcome: str, side: str) -> str:
+        """'' if the entry may be opened, else why not. Counts equivalent bets once, and refuses to hedge an existing entry."""
+        bets = self._equivalent_bets(game, outcome, side)
+        if sum(self.ledger.count_entries(game.key, venue, o, sd) for o, sd in bets) >= self.s.max_entries_per_outcome:
+            return "duplicate"
+        if not self.s.allow_hedged_entries:
+            flip = {"yes": "no", "no": "yes"}
+            if any(self.ledger.count_entries_any_venue(game.key, o, flip[sd]) for o, sd in bets):
+                return "hedge"
+        return ""
+
     def paper_entries(self, game: MatchedGame, now: datetime, stats: CycleStats) -> None:
         for v, vg in game.venues.items():
-            for c in evaluate(game, vg, self.s, now):
-                if self.ledger.count_entries(game.key, v, c.outcome.key, c.side) >= self.s.max_entries_per_outcome:
+            for c in sorted(evaluate(game, vg, self.s, now), key=lambda c: -c.edge):  # best price first if two candidates are the same bet
+                if self._duplicate_or_hedge(game, v, c.outcome.key, c.side):
                     continue
                 f = c.fill
                 eid = self.ledger.add_entry(
@@ -249,6 +284,7 @@ class Engine:
                 if back and back.sharp and k in back.sharp.fair:
                     value = back.sharp.fair[k]
                     self.ledger.capture_closing(e["game_key"], k, "pinnacle", value, start - timedelta(minutes=1))
+                    self._capture_alt_closes(e["game_key"], back.sharp, start - timedelta(minutes=1))
                     return value, ""
                 reason = (reason + "; " if reason else "") + ("historical backfill found nothing" if not self.sharp.closing_blocked else "historical backfill blocked by credit budget")
         if reason:
@@ -285,11 +321,17 @@ class Engine:
                 fields.update(sharp_fair_close=round(c, 6), clv_pct=round(c / e["effective_price"] - 1, 6),
                               clv_pct_raw=round(c / e["avg_price"] - 1, 6), clv_status="done")
             else:
-                fields["clv_status"] = "pending_sharp"
+                # pending_sharp while a late backfill is still possible; 'no_close' (explicitly marked, excluded from the
+                # measured sample, never silently dropped) once SETTLE_AFTER_HOURS have passed after kickoff
+                given_up = now >= start + timedelta(hours=self.s.settle_after_hours)
+                fields["clv_status"] = "no_close" if given_up else "pending_sharp"
                 if e["id"] not in self._missing_logged:
                     self._missing_logged.add(e["id"])
                     log.warning("Pinnacle close NOT captured: entry #%s %s %s %s %s | %s | kickoff %s | %s",
                                 e["id"], e["league"], e["venue"], e["side"].upper(), e["outcome_label"], e["game_label"], e["start_time"], why)
+                if given_up and e["clv_status"] != "no_close":
+                    log.warning("entry #%s marked no_close (no valid Pinnacle close %sh after kickoff): excluded from CLV stats",
+                                e["id"], self.s.settle_after_hours)
             self.ledger.update_entry(e["id"], **fields)
             n += 1
         return n

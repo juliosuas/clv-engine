@@ -98,6 +98,7 @@ class Settings:
     require_pinnacle_ref: bool = True
     # Minimum ask depth (USD notional) within depth_tolerance of the best ask; the full STAKE_USD
     # must also fill (ALLOW_PARTIAL=0). 0 disables the depth check.
+    allow_hedged_entries: bool = False
     min_depth_usd: float = 250.0
     depth_tolerance: float = 0.01
     stake_usd: float = 100.0
@@ -134,14 +135,15 @@ class Settings:
     log_level: str = "INFO"
 
     # --- graduation gate (proposed thresholds, not approved facts; see docs/GRADUATION.md) ---
-    grad_min_entries: int = 300
+    grad_min_games: int = 300
     grad_ci_level: float = 0.90
-    grad_min_group_entries: int = 30
+    grad_min_group_games: int = 30
     grad_min_leagues: int = 2
     grad_min_venues: int = 2
     grad_max_league_share: float = 0.70
     grad_min_settled_fraction: float = 0.90
     grad_bootstrap_samples: int = 5000
+    grad_deadline: str = "2027-01-27"
 
     @classmethod
     def from_env(cls, dotenv: str | None = ".env") -> "Settings":
@@ -180,6 +182,7 @@ class Settings:
             entry_reference=os.environ.get("ENTRY_REFERENCE", d.entry_reference).strip().lower(),
             min_edge=_f("MIN_EDGE", d.min_edge),
             require_pinnacle_ref=_b("REQUIRE_PINNACLE_REF", d.require_pinnacle_ref),
+            allow_hedged_entries=_b("ALLOW_HEDGED_ENTRIES", d.allow_hedged_entries),
             min_depth_usd=_f("MIN_DEPTH_USD", d.min_depth_usd),
             depth_tolerance=_f("DEPTH_TOLERANCE", d.depth_tolerance),
             stake_usd=_f("STAKE_USD", d.stake_usd),
@@ -210,12 +213,13 @@ class Settings:
             weekly_report_weekday=_i("WEEKLY_REPORT_WEEKDAY", d.weekly_report_weekday),
             weekly_report_hour=_i("WEEKLY_REPORT_HOUR", d.weekly_report_hour),
             log_level=os.environ.get("LOG_LEVEL", d.log_level),
-            grad_min_entries=_i("GRAD_MIN_ENTRIES", d.grad_min_entries),
+            grad_min_games=_i("GRAD_MIN_GAMES", d.grad_min_games),
             grad_ci_level=_f("GRAD_CI_LEVEL", d.grad_ci_level),
-            grad_min_group_entries=_i("GRAD_MIN_GROUP_ENTRIES", d.grad_min_group_entries),
+            grad_min_group_games=_i("GRAD_MIN_GROUP_GAMES", d.grad_min_group_games),
             grad_min_leagues=_i("GRAD_MIN_LEAGUES", d.grad_min_leagues),
             grad_min_venues=_i("GRAD_MIN_VENUES", d.grad_min_venues),
             grad_max_league_share=_f("GRAD_MAX_LEAGUE_SHARE", d.grad_max_league_share),
             grad_min_settled_fraction=_f("GRAD_MIN_SETTLED_FRACTION", d.grad_min_settled_fraction),
             grad_bootstrap_samples=_i("GRAD_BOOTSTRAP_SAMPLES", d.grad_bootstrap_samples),
+            grad_deadline=os.environ.get("GRAD_DEADLINE", d.grad_deadline),
         )

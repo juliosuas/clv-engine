@@ -139,7 +139,7 @@ def test_status_reports_target_reached():
     led = Ledger(":memory:")
     for i in range(6):
         add(led, i, day=NOW - timedelta(days=5) + timedelta(hours=i))
-    st = status(led, cfg(grad_min_entries=5), NOW)
+    st = status(led, cfg(grad_min_games=5), NOW)
     assert st["days_to_target"] == 0.0 and "reached" in st["projection"]
 
 
@@ -150,7 +150,7 @@ def crit(g, prefix):
 
 def test_gate_not_ready_on_empty_and_never_claims_authorization():
     g = graduation(Ledger(":memory:"), cfg(), NOW)
-    assert not g["passed"] and g["met"] == 0 and "NOT READY" in g["verdict"]
+    assert not g["passed"] and g["met"] == 0 and g["state"] == "extend" and "EXTEND" in g["verdict"]
     assert all(c["ok"] in (None, False) for c in g["criteria"])  # unknown counts as not met
 
 
@@ -159,15 +159,15 @@ def test_gate_passes_only_with_all_criteria():
     fill(led, 300)
     g = graduation(led, cfg(), NOW)
     assert g["sample_n"] == 300 and g["passed"], format_graduation(g)
-    assert "not an authorization" in g["verdict"] and "nothing in this repo places orders" in g["verdict"]
+    assert "not an authorization" in g["verdict"] and "nothing in this repository places real orders" in g["verdict"]
     assert PROPOSED_RISK_LIMITS["max_per_ticket"].startswith("1%")
 
 
-def test_gate_fails_below_300_entries():
+def test_gate_below_300_games_is_extend_not_fail():
     led = Ledger(":memory:")
     fill(led, 299)
     g = graduation(led, cfg(), NOW)
-    assert not g["passed"] and crit(g, "sample size")["ok"] is False
+    assert not g["passed"] and crit(g, "sample size")["ok"] is None and g["state"] == "extend"  # insufficient, not failed
 
 
 def test_gate_requires_ci_lower_bound_above_zero():
@@ -176,7 +176,7 @@ def test_gate_requires_ci_lower_bound_above_zero():
     for i in range(300):  # mean ~ +0.2% with sd 12%: positive mean, interval straddles 0
         add(led, i, clv=0.002 + rng.uniform(-0.2, 0.2), league=["nba", "epl"][i % 2], venue=["polymarket", "kalshi"][(i // 2) % 2])
     g = graduation(led, cfg(), NOW)
-    assert crit(g, "mean CLV")["ok"] is True and crit(g, "90% CI")["ok"] is False and not g["passed"]
+    assert crit(g, "mean CLV")["ok"] is True and crit(g, "90% CI")["ok"] is False and g["state"] == "fail"
 
 
 def test_gate_requires_negative_or_zero_mean_to_fail():
@@ -184,19 +184,19 @@ def test_gate_requires_negative_or_zero_mean_to_fail():
     for i in range(300):
         add(led, i, clv=-0.03 if i % 2 else -0.01, league=["nba", "epl"][i % 2], venue=["polymarket", "kalshi"][(i // 2) % 2])
     g = graduation(led, cfg(), NOW)
-    assert crit(g, "mean CLV")["ok"] is False and not g["passed"]
+    assert crit(g, "mean CLV")["ok"] is False and g["state"] == "fail"
 
 
 def test_gate_requires_positive_after_fee_pnl_on_the_same_sample():
     led = Ledger(":memory:")
     fill(led, 300, settled=False)
     g = graduation(led, cfg(), NOW)
-    assert crit(g, "after-fee")["ok"] is None and not g["passed"]  # not enough settled: unknown, not a pass
+    assert crit(g, "after-fee")["ok"] is None and g["state"] == "extend"  # not enough settled: wait, neither pass nor fail
     led2 = Ledger(":memory:")
     for i in range(300):  # good CLV but results went against it: losing paper P&L
         add(led2, i, clv=0.06, league=["nba", "epl"][i % 2], venue=["polymarket", "kalshi"][(i // 2) % 2], won=(i % 10 == 0))
     g2 = graduation(led2, cfg(), NOW)
-    assert crit(g2, "after-fee")["ok"] is False and not g2["passed"]
+    assert crit(g2, "after-fee")["ok"] is False and g2["state"] == "fail"
 
 
 def test_gate_fails_when_one_league_drives_the_result():
@@ -223,13 +223,13 @@ def test_gate_fails_when_one_venue_drives_the_result_or_only_one_venue_exists():
     fill(led2, 300)
     s = cfg(excluded_venues=["kalshi"])  # the default config with Kalshi off: sample shrinks and one venue cannot clear the gate
     assert not graduation(led2, s, NOW)["passed"]
-    s.grad_min_venues, s.grad_min_entries = 1, 100
+    s.grad_min_venues, s.grad_min_games = 1, 100
     assert crit(graduation(led2, s, NOW), "no single venue")["ok"] is True
 
 
 def test_default_settings_are_the_proposed_thresholds():
     s = Settings()
-    assert (s.grad_min_entries, s.grad_ci_level, s.min_edge) == (300, 0.90, 0.05)
+    assert (s.grad_min_games, s.grad_ci_level, s.min_edge) == (300, 0.90, 0.05)
     assert s.excluded_leagues == ["ucl"] and s.excluded_venues == ["kalshi"]
 
 
@@ -248,7 +248,7 @@ def test_cli_status_and_graduation(tmp_path, capsys, monkeypatch):
     assert json.loads(capsys.readouterr().out)["sample_n"] == 40
     assert main(["--env-file", "", "graduation"]) == 0
     out = capsys.readouterr().out
-    assert "GRADUATION CHECK" in out and "[FAIL] sample size" in out and "not enforced anywhere" in out
+    assert "GRADUATION CHECK" in out and "[N/A ] sample size" in out and "EXTEND" in out and "not enforced anywhere" in out
     assert main(["--env-file", "", "graduation", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["passed"] is False
 
@@ -266,3 +266,115 @@ def test_graduation_doc_exists_and_labels_limits_as_proposals():
     for needle in ("300", "90%", "1%", "kill switch", "proposal"):
         assert needle.lower() in doc.lower(), needle
     assert "nothing in this repository places real orders" in doc.lower()
+
+
+# ---- adjustments: game clustering, pre-registered rules, extend vs fail, retroactive rate, deadline ----------------------------
+def test_n_measured_counts_distinct_games_and_ci_is_per_game():
+    led = Ledger(":memory:")
+    for i in range(10):  # 10 games x 4 correlated entries each
+        for j in range(4):
+            add(led, i * 10 + j, game=f"g{i}", clv=0.05 + 0.01 * (i % 3), venue=["polymarket", "kalshi"][j % 2], day=T0 + timedelta(hours=i))
+    st = status(led, cfg(), NOW)
+    assert st["sample_n"] == 40 and st["games_measured"] == 10 and st["ci"]["n_games"] == 10
+    flat = Ledger(":memory:")  # same CLVs but 40 independent games: the interval over games is wider for the clustered ledger
+    for i in range(40):
+        add(flat, i, game=f"h{i}", clv=0.05 + 0.01 * ((i // 4) % 3), day=T0 + timedelta(hours=i))
+    wide = status(led, cfg(), NOW)["ci"]["t"]
+    narrow = status(flat, cfg(), NOW)["ci"]["t"]
+    assert (wide[1] - wide[0]) > (narrow[1] - narrow[0])
+    g = graduation(led, cfg(grad_min_games=40), NOW)  # 40 entries but only 10 games: size criterion not met
+    assert crit(g, "sample size")["ok"] is None and g["state"] == "extend"
+
+
+def test_game_level_mean_not_entry_weighted():
+    led = Ledger(":memory:")
+    for j in range(9):
+        add(led, j, game="big", clv=0.00, day=T0 + timedelta(hours=j))  # 9 entries of one game at 0%
+    add(led, 50, game="small", clv=0.10, day=T0 + timedelta(hours=20))
+    st = status(led, cfg(), NOW)
+    assert st["mean_clv"] == pytest.approx(0.05) and st["mean_clv_entry_weighted"] == pytest.approx(0.01)
+
+
+def test_extend_vs_fail_distinction():
+    led = Ledger(":memory:")
+    for i in range(100):  # clearly negative, but far below 300 games: still EXTEND (no early failure)
+        add(led, i, clv=-0.05, league=["nba", "epl"][i % 2], venue=["polymarket", "kalshi"][(i // 2) % 2])
+    g = graduation(led, cfg(), NOW)
+    assert g["state"] == "extend" and "not a failure" in g["verdict"]
+    fmt = format_graduation(g)
+    assert "FAIL?" in fmt and "provisional" in fmt
+    led2 = Ledger(":memory:")
+    for i in range(300):
+        add(led2, i, clv=-0.05, league=["nba", "epl"][i % 2], venue=["polymarket", "kalshi"][(i // 2) % 2])
+    assert graduation(led2, cfg(), NOW)["state"] == "fail"
+
+
+def test_sensitivity_reports_power_and_multiplicative_closes():
+    led = Ledger(":memory:")
+    e1 = add(led, 1, clv=0.10)
+    add(led, 2, clv=0.10)  # no alternative close rows for this game
+    led.capture_closing("g1", "a", "pinnacle_power", 0.60, T0)
+    led.capture_closing("g1", "a", "pinnacle_multiplicative", 0.55, T0)
+    sample = measured_sample(led, cfg())
+    sens = status(led, cfg(), NOW)["sensitivity"]
+    assert sens["power"]["games"] == 1 and sens["power"]["mean_clv"] == pytest.approx(0.60 / 0.50 - 1)
+    assert sens["multiplicative"]["mean_clv"] == pytest.approx(0.55 / 0.50 - 1)
+    assert len(sample) == 2 and e1
+    txt = format_status(status(led, cfg(), NOW))
+    assert "power:" in txt and "multiplicative:" in txt
+
+
+def test_both_devig_closes_are_captured_by_the_engine(http):
+    from tests.test_quota_scheduler import LMX_KICK, make, mins, settings as qsettings
+
+    s = qsettings(max_sharp_age_minutes=60, leagues=["ligamx"], min_edge=0.05)
+    eng = make(http, s)
+    eng.cycle(LMX_KICK - mins(50))
+    gk = eng.ledger.entries()[0]["game_key"]
+    p = eng.ledger.closing(gk, "necaxa", "pinnacle_power")
+    m = eng.ledger.closing(gk, "necaxa", "pinnacle_multiplicative")
+    assert p is not None and m is not None and p != m  # longshot gets less margin under power
+    assert p < m
+    both = [eng.ledger.closing(gk, k, "pinnacle_power") for k in ("necaxa", "guadalajara", "draw")]
+    assert sum(both) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_no_close_entries_are_marked_and_excluded_from_the_sample():
+    led = Ledger(":memory:")
+    add(led, 1)
+    add(led, 2, status_="no_close", close=False)
+    st = status(led, cfg(), NOW)
+    assert st["no_close"] == 1 and st["games_measured"] == 1 and "NO CLOSE" in format_status(st)
+
+
+def test_retroactive_rate_under_new_filters_and_deadline_warning():
+    led = Ledger(":memory:")
+    for i in range(20):  # 20 old entries over 20 days: half pass the new filters
+        add(led, i, day=NOW - timedelta(days=40) + timedelta(days=i), edge=0.08 if i % 2 == 0 else 0.03, ref="pinnacle" if i < 16 else "consensus")
+    rt = status(led, cfg(), NOW)["retro"]
+    assert rt["entries"] == 8 and rt["entries_per_day"] == pytest.approx(8 / 40)
+    assert "upper bound" in rt["note"]
+    st = status(led, cfg(), NOW)
+    assert st["deadline_warning"].startswith("WARNING") and "2027-01-27" in st["deadline_warning"]
+    assert "WARNING" in format_status(st)
+
+
+def test_deadline_warning_cannot_confirm_without_rate_and_clears_when_on_pace():
+    st = status(Ledger(":memory:"), cfg(), NOW)
+    assert "cannot confirm" in st["deadline_warning"] and "would need" in st["deadline_warning"]
+    led = Ledger(":memory:")
+    for i in range(120):  # ~6 games/day for 20 days => 300 games within the ~68 days left
+        add(led, i, day=NOW - timedelta(days=20) + timedelta(hours=4 * i))
+    st = status(led, cfg(), NOW)
+    assert st["games_per_day"] == pytest.approx(6.0) and st["deadline_warning"] == ""
+    slow = Ledger(":memory:")
+    for i in range(30):
+        add(slow, i, day=NOW - timedelta(days=20) + timedelta(hours=16 * i))
+    assert "pace too slow" in status(slow, cfg(), NOW)["deadline_warning"]
+    assert "passed" in status(slow, cfg(grad_deadline="2026-11-01"), NOW)["deadline_warning"]
+
+
+def test_preregistered_rules_in_output_and_doc():
+    g = graduation(Ledger(":memory:"), cfg(), NOW)
+    assert "TAKER" in g["rules"]["fills"] and "scheduled kickoff" in g["rules"]["close"] and "multiplicative" in g["rules"]["clv"]
+    assert "Rules fixed before measuring" in format_graduation(g)

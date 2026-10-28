@@ -19,7 +19,7 @@ def venue_fair(vg: VenueGame) -> dict[str, float] | None:
     """Normalized mids of one venue (multiplicative de-vig of mid prices)."""
     if not vg.exhaustive:
         return None
-    mids = {k: o.mid for k, o in vg.outcomes.items()}
+    mids = {k: o.mid2 for k, o in vg.outcomes.items()}
     if any(m is None or m <= 0 for m in mids.values()):
         return None
     s = sum(mids.values())

@@ -40,11 +40,16 @@ def test_no_key_runs_and_marks_clv_pending(http, now):
     assert {r["ref_source"] for r in rows} == {"consensus"}
     assert all(r["sharp_fair_entry"] is None for r in rows)
     # after kickoff: no Pinnacle close -> pending_sharp; venue CLV still computed
+    s.settle_after_hours = 10_000  # still inside the window where a late backfill could arrive
     eng.finalize_clv(now + timedelta(days=3))
     after = eng.ledger.entries()
     assert {r["clv_status"] for r in after} == {"pending_sharp"}
     assert all(r["clv_pct"] is None for r in after)
     assert any(r["venue_clv_pct"] is not None for r in after)
+    # past SETTLE_AFTER_HOURS with still no close: explicitly marked no_close (never silently dropped)
+    s.settle_after_hours = 3
+    eng.finalize_clv(now + timedelta(days=3, seconds=1))
+    assert {r["clv_status"] for r in eng.ledger.entries()} == {"no_close"}
 
 
 def test_sharp_reference_entry_clv_and_settlement(http, now):

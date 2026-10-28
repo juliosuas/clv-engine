@@ -49,6 +49,7 @@ def _agg(rows) -> dict:
         "avg_venue_clv": (sum(vclv) / len(vclv)) if vclv else None,
         "pending_sharp": sum(1 for r in rows if r["clv_status"] == "pending_sharp"),
         "pending_close": sum(1 for r in rows if r["clv_status"] == "pending_close"),
+        "no_close": sum(1 for r in rows if r["clv_status"] == "no_close"),
     }
 
 
@@ -89,7 +90,7 @@ def format_summary(s: dict) -> str:
         if s[key]:
             lines.append(f"-- {title}")
             lines += [row(k, v) for k, v in s[key].items()]
-    lines.append("CLV = Pinnacle de-vigged close / effective entry price - 1 (after fees). vCLV = venue's own closing mid / avg price - 1.")
+    lines.append("CLV = Pinnacle de-vigged close / effective entry price - 1 (after fees). vCLV = venue's own closing mid / avg price - 1 (own-venue price drift: NOT CLV, gross of fee, and for consensus-referenced entries not independent of the reference; see `audit`).")
     return "\n".join(lines)
 
 
@@ -105,10 +106,10 @@ def weekly(ledger: Ledger, end: datetime | None = None, tz_name: str = "America/
     runs = ledger.conn.execute("SELECT COUNT(*) n, SUM(errors) err, AVG(seconds) secs, MAX(note) note FROM runs WHERE ts >= ? AND ts < ?", (s_iso, e_iso)).fetchone()
 
     def table(groups: dict) -> list[str]:
-        out = ["| group | entries | settled | hit rate | P&L | ROI | avg edge | avg CLV (n) | beat close | avg venue CLV | CLV pending |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+        out = ["| group | entries | settled | hit rate | P&L | ROI | avg edge | avg CLV (n) | beat close | avg venue drift (not CLV, gross) | CLV pending |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
         for k, a in groups.items():
             out.append(f"| {k} | {a['entries']} | {a['settled']} | {_pct0(a['hit_rate'])} | {_usd(a['pnl'])} | {_pct(a['roi'])} | {_pct(a['avg_edge'])} | "
-                       f"{_pct(a['avg_clv'])} ({a['clv_n']}) | {_pct0(a['clv_beat'])} | {_pct(a['avg_venue_clv'])} | {a['pending_sharp'] + a['pending_close']} |")
+                       f"{_pct(a['avg_clv'])} ({a['clv_n']}) | {_pct0(a['clv_beat'])} | {_pct(a['avg_venue_clv'])} | {a['pending_sharp'] + a['pending_close']} (+{a['no_close']} no close) |")
         return out
 
     def by(rows, field):
