@@ -9,8 +9,9 @@ bookmaker list has no Caliente and only "codere_it" (Codere Italy), not Codere M
 
 The key is read from ODDS_API_KEY only and is redacted from logs.
 Credits: one /odds call costs (#markets) x (#regions); a bookmakers list counts
-as one region per 10 books. Polling cadence and the daily credit budget are handled by
-sharp/quota.py (tiers by time to kickoff, ODDS_API_DAILY_BUDGET, x-requests-* headers).
+as one region per 10 books, and `bookmakers` takes priority over `regions`. Polling is
+scheduled by sharp/quota.py: one poll per sport serves every event of a kickoff round
+(entry poll at T-25 min, close poll(s) at T-5..T-1 min), under a monthly budget with a hard cap.
 """
 
 from __future__ import annotations
@@ -25,7 +26,15 @@ from ..leagues import League
 from ..models import DRAW, BookLine, SharpGame
 from ..teams import canonical
 from ..util import parse_datetime, safe_float, utc_now
-from .quota import CLOSE, HISTORICAL_COST_MULTIPLIER, QuotaTracker, plan_league
+from .quota import (
+    ENTRY,
+    FINAL,
+    HISTORICAL,
+    HISTORICAL_COST_MULTIPLIER,
+    QuotaTracker,
+    build_rounds,
+    next_poll,
+)
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +90,9 @@ def parse_events(data: Any, league: League, method: str, sharp_book: str, soft_b
     return games
 
 
+SCHEDULE_MERGE_MINUTES = 45
+
+
 class TheOddsApiSource:
     name = "theoddsapi"
     available = True
@@ -89,79 +101,119 @@ class TheOddsApiSource:
         self.http = http
         self._key = api_key
         self.s = settings
+        self.ledger = ledger
         self.method = settings.devig_method
         self.sharp_book = settings.sharp_book
         self.soft_books = settings.soft_books
         self.historical = settings.odds_api_historical
-        self.quota = QuotaTracker(settings, ledger, n_books=1 + len(settings.soft_books))
+        self.quota = QuotaTracker(settings, ledger, n_books=len(self._books_list()))
         self._cache: dict[str, tuple[datetime, list[SharpGame]]] = {}
         self._pending: dict[str, list[datetime]] = {}
+        self._schedule: dict[str, list[datetime]] = {}
+        self._polls: dict[str, list[datetime]] = {}
         self._retry_after: dict[str, datetime] = {}
-        self._warned: set[tuple[str, str, str]] = set()
-        self.tier: dict[str, str] = {}
+        self._warned: set[tuple] = set()
+        self.tier: dict[str, str] = {}  # last scheduler decision per league: entry | close_early | close_final | idle
         self.closing_blocked = False
 
+    def _books_list(self) -> list[str]:
+        """Pinnacle only, unless soft-book entries are enabled (then the soft books ride along: up to 10 books still cost 1 credit)."""
+        return [self.sharp_book, *(self.soft_books if self.s.soft_entries else [])]
+
     def _books_param(self) -> str:
-        return ",".join([self.sharp_book, *self.soft_books])
+        return ",".join(self._books_list())
 
     # ---- scheduling hooks ------------------------------------------------
     def set_pending(self, league_key: str, kickoffs: list[datetime]) -> None:
         self._pending[league_key] = list(kickoffs)
 
+    def set_schedule(self, league_key: str, kickoffs: list[datetime]) -> None:
+        self._schedule[league_key] = list(kickoffs)
+
     def fetched_at(self, league_key: str) -> datetime | None:
         cached = self._cache.get(league_key)
         return cached[0] if cached else None
 
-    def _plan(self, league: League, now: datetime) -> tuple[str, int]:
+    def _rounds(self, league: League, now: datetime):
         cached = self._cache.get(league.key)
         known = [g.start for g in cached[1] if g.start] if cached else []
-        tier, interval, _ = plan_league(now, known, self._pending.get(league.key, []), self.s)
-        self.tier[league.key] = tier
-        return tier, interval
+        # Pinnacle's commence_time is the truth; a venue kickoff (Kalshi's is only derived) that sits within SCHEDULE_MERGE_MINUTES
+        # of one is the same game, so it must not open a second round (= a second entry poll)
+        extra = [k for k in self._schedule.get(league.key, []) if not any(abs((k - p).total_seconds()) <= SCHEDULE_MERGE_MINUTES * 60 for p in known)]
+        return build_rounds(now, known + extra, self._pending.get(league.key, []), self.s)
 
-    def _due(self, league: League, now: datetime) -> tuple[bool, str]:
-        tier, interval = self._plan(league, now)
-        cached = self._cache.get(league.key)
+    def _committed(self, now: datetime) -> float:
+        """Credits owed to the final close polls of every pending round (all sports) that has not had its close poll yet."""
+        n = 0
+        for lk, pend in self._pending.items():
+            league_polls = self._polls.get(lk, [])
+            for r in build_rounds(now, [], pend, self.s):
+                lo = r.start - timedelta(minutes=self.s.close_window_max_minutes)
+                if r.pending and not any(lo <= p <= r.start for p in league_polls):
+                    n += 1
+        return n * self.quota.est_cost
+
+    def _due(self, league: League, now: datetime):
         retry = self._retry_after.get(league.key)
-        if retry and now < retry:
-            return False, tier
-        if not cached:
-            return True, tier
-        slack = min(15.0, interval * 0.1)  # the engine loop is not perfectly periodic
-        return (now - cached[0]).total_seconds() >= interval - slack, tier
+        due = None if (retry and now < retry) else next_poll(now, self._rounds(league, now), self.fetched_at(league.key), self._polls.get(league.key, []), self.s)
+        self.tier[league.key] = due.kind if due else "idle"
+        return due
 
-    def _warn_once(self, league: League, now: datetime, reason: str) -> None:
-        key = (league.key, self.quota.day(now), reason.split("(")[0].strip()[:40])
+    def _warn_once(self, key: tuple, msg: str, *args) -> None:
         if key not in self._warned:
             self._warned.add(key)
-            log.warning("Odds API poll skipped for %s: %s; serving cached Pinnacle data (stale data is not used for entries "
-                        "or closing capture after MAX_SHARP_AGE_MINUTES)", league.key, reason)
+            log.warning(msg, *args)
 
     def fetch(self, league: League, now: datetime | None = None) -> list[SharpGame]:
         if not league.odds_api_sport:
             return []
         now = now or utc_now()
-        due, tier = self._due(league, now)
+        due = self._due(league, now)
         cached_games = self._cache[league.key][1] if league.key in self._cache else []
-        if not due:
+        if due is None:
             return cached_games
-        ok, reason = self.quota.decide(now, essential=(tier == CLOSE))
+        ok, reason = self.quota.decide(now, due.kind, committed=0.0 if due.kind == FINAL else self._committed(now))
         if not ok:
             self.quota.record_skip(now)
-            self._warn_once(league, now, reason)
+            self._deny(league, due, now, reason)
             return cached_games
         data, headers = self._get(f"{BASE}/sports/{league.odds_api_sport}/odds",
                                   {"apiKey": self._key, "markets": "h2h", "oddsFormat": "decimal", "dateFormat": "iso",
-                                   "bookmakers": self._books_param()})
+                                   "regions": self.s.odds_api_regions, "bookmakers": self._books_param()})
         if data is not None or headers:  # a transport failure with no response is not charged
             self.quota.record_call(now, headers)
         if data is None:
-            self._retry_after[league.key] = now + timedelta(seconds=min(300, max(60, self.s.poll_seconds)))
-            log.warning("Odds API poll failed for %s (tier %s); retrying later, remaining=%s", league.key, tier, self.quota.last_remaining)
+            wait = 30 if due.kind != ENTRY else min(300, max(60, self.s.poll_seconds))
+            self._retry_after[league.key] = now + timedelta(seconds=wait)
+            log.warning("Odds API poll failed for %s (%s round %s); retrying later, remaining=%s", league.key, due.kind,
+                        due.round.start.strftime("%Y-%m-%dT%H:%MZ"), self.quota.last_remaining)
             return cached_games
         games = parse_events(data, league, self.method, self.sharp_book, self.soft_books)
         self._cache[league.key] = (now, games)
+        self._polls.setdefault(league.key, []).append(now)
+        del self._polls[league.key][:-50]
+        if due.kind != ENTRY and self.ledger is not None:
+            self.ledger.clear_missed_close(league.key, due.round.start)  # a later cycle did get the close after all
         return games
+
+    def _deny(self, league: League, due, now: datetime, reason: str) -> None:
+        rnd = due.round.start.strftime("%Y-%m-%dT%H:%MZ")
+        if due.kind == ENTRY:
+            self._warn_once((league.key, "entry", rnd), "Odds API entry poll skipped for %s round %s: %s; entries for it may rely on stale Pinnacle data "
+                            "(not used after MAX_SHARP_AGE_MINUTES)", league.key, rnd, reason)
+        elif due.kind == FINAL:
+            lo = due.round.start - timedelta(minutes=self.s.close_window_max_minutes)
+            if any(lo <= p <= due.round.start for p in self._polls.get(league.key, [])):
+                self._warn_once((league.key, "final-kept", rnd), "Odds API final close poll skipped for %s round %s: %s; keeping the earlier in-window sample as the close",
+                                league.key, rnd, reason)
+                return
+            if self.ledger is not None:
+                self.ledger.add_missed_close(league.key, due.round.start, due.round.end, now, reason)
+            self._warn_once((league.key, "final", rnd), "Odds API close poll NOT made for %s round %s (kickoff %s): %s; entries of this round will be marked no_close "
+                            "(excluded from CLV stats)", league.key, rnd, rnd, reason)
+        else:
+            self._warn_once((league.key, "early", rnd), "Odds API early close poll skipped for %s round %s: %s; degrading to a single final close poll",
+                            league.key, rnd, reason)
 
     def _get(self, url: str, params: dict[str, Any]) -> tuple[Any, dict[str, str]]:
         meta = getattr(self.http, "get_json_meta", None)
@@ -175,11 +227,11 @@ class TheOddsApiSource:
         if not self.historical or not league.odds_api_sport:
             return None
         now = now or utc_now()
-        ok, reason = self.quota.decide(now, essential=False, multiplier=HISTORICAL_COST_MULTIPLIER)
+        ok, reason = self.quota.decide(now, HISTORICAL, multiplier=HISTORICAL_COST_MULTIPLIER, committed=self._committed(now))
         if not ok:
             self.closing_blocked = True
             self.quota.record_skip(now)
-            self._warn_once(league, now, "historical backfill " + reason)
+            self._warn_once((league.key, "historical", self.quota.day(now)), "Odds API historical backfill skipped for %s: %s", league.key, reason)
             return None
         when = (start - timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
         data, headers = self._get(f"{BASE}/historical/sports/{league.odds_api_sport}/events/{game_ref}/odds",

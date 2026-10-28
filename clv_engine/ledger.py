@@ -105,6 +105,14 @@ CREATE TABLE IF NOT EXISTS api_usage (
     used INTEGER,                          -- last x-requests-used seen
     updated_at TEXT
 );
+CREATE TABLE IF NOT EXISTS missed_closes (
+    league TEXT NOT NULL,
+    round_start TEXT NOT NULL,             -- first kickoff of the round whose close poll could not be made
+    round_end TEXT NOT NULL,               -- last kickoff grouped into the round
+    ts TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    PRIMARY KEY (league, round_start)
+);
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
@@ -237,9 +245,43 @@ class Ledger:
         )
         self.conn.commit()
 
+    def month_usage(self, month: str) -> dict[str, Any]:
+        """Totals for a UTC calendar month 'YYYY-MM' plus the latest x-requests-remaining/used seen in it."""
+        like = month + "-%"
+        r = self.conn.execute("SELECT COALESCE(SUM(credits),0), COALESCE(SUM(requests),0), COALESCE(SUM(skipped),0) FROM api_usage WHERE day LIKE ?", (like,)).fetchone()
+        h = self.conn.execute("SELECT remaining, used FROM api_usage WHERE day LIKE ? AND remaining IS NOT NULL ORDER BY day DESC LIMIT 1", (like,)).fetchone()
+        return {"month": month, "credits": float(r[0]), "requests": int(r[1]), "skipped": int(r[2]),
+                "remaining": None if h is None else h[0], "used": None if h is None else h[1]}
+
+    # ---- close polls the credit budget could not afford (entries of these rounds are marked no_close) ----
+    def add_missed_close(self, league: str, round_start: datetime, round_end: datetime, now: datetime, reason: str) -> bool:
+        cur = self.conn.execute("INSERT OR IGNORE INTO missed_closes VALUES (?,?,?,?,?)", (league, iso(round_start), iso(round_end), iso(now), reason))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def clear_missed_close(self, league: str, round_start: datetime) -> None:
+        self.conn.execute("DELETE FROM missed_closes WHERE league=? AND round_start=?", (league, iso(round_start)))
+        self.conn.commit()
+
+    def missed_close_for(self, league: str, kickoff: datetime, slack_minutes: float = 1.0) -> dict[str, Any] | None:
+        """The missed-close record whose round contains `kickoff`, if any."""
+        for r in self.conn.execute("SELECT * FROM missed_closes WHERE league=?", (league,)).fetchall():
+            a, b = parse_datetime(r["round_start"]), parse_datetime(r["round_end"])
+            if a and b and a - timedelta(minutes=slack_minutes) <= kickoff <= b + timedelta(minutes=slack_minutes):
+                return dict(r)
+        return None
+
+    def missed_closes(self) -> list[dict[str, Any]]:
+        return [dict(r) for r in self.conn.execute("SELECT * FROM missed_closes ORDER BY round_start").fetchall()]
+
     def last_known_remaining(self) -> int | None:
         r = self.conn.execute("SELECT remaining FROM api_usage WHERE remaining IS NOT NULL ORDER BY day DESC LIMIT 1").fetchone()
         return None if r is None else int(r[0])
+
+    def all_quotes(self) -> list[dict[str, Any]]:
+        """Stored book ticks of every game that has an entry (read-only; used by the audit's spread split)."""
+        rows = self.conn.execute("SELECT q.* FROM quotes q WHERE q.game_key IN (SELECT DISTINCT game_key FROM entries) ORDER BY q.ts").fetchall()
+        return [dict(r) for r in rows]
 
     # ---- quotes (price history with dedupe, pattern from polymarket-desk api/market.py) ----
     def add_quote(self, game_key: str, source: str, outcome_key: str, best_ask: float | None, best_bid: float | None, ask_depth: float | None,

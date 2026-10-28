@@ -52,7 +52,8 @@ def test_env_example_loads_clean_values(monkeypatch):
     assert s.leagues == ["nba", "nfl", "epl", "laliga", "ligamx", "ucl"]
     assert s.excluded_leagues == ["ucl"] and s.excluded_venues == ["kalshi"]
     assert s.min_edge == 0.05 and s.require_pinnacle_ref is True and s.min_depth_usd == 250
-    assert s.odds_api_daily_budget == 1000 and s.close_capture_minutes == 30
+    assert (s.odds_api_monthly_budget, s.odds_api_hard_cap) == (500, 450) and s.odds_api_regions == "eu"
+    assert (s.close_window_max_minutes, s.close_window_min_minutes, s.entry_poll_lead_minutes) == (5, 1, 25)
 
 
 def test_env_example_matches_code_defaults(monkeypatch):
@@ -65,7 +66,15 @@ def test_env_example_matches_code_defaults(monkeypatch):
         monkeypatch.setenv(key, value)
     from_example, defaults = asdict(Settings.from_env(dotenv=None)), asdict(Settings())
     for key in ("excluded_leagues", "excluded_venues", "min_edge", "require_pinnacle_ref", "min_depth_usd", "depth_tolerance",
-                "odds_api_daily_budget", "odds_api_close_reserve", "odds_api_min_remaining", "max_sharp_age_minutes", "close_max_age_minutes",
-                "sharp_near_poll_seconds", "sharp_idle_poll_seconds", "near_window_minutes", "idle_after_minutes", "leagues",
+                "odds_api_monthly_budget", "odds_api_hard_cap", "odds_api_regions", "odds_api_daily_burst", "close_window_max_minutes",
+                "close_window_min_minutes", "close_polls_per_round", "entry_poll_lead_minutes", "plan_rounds_per_league_day", "soft_entries",
+                "odds_api_close_reserve", "odds_api_min_remaining", "max_sharp_age_minutes", "close_max_age_minutes", "leagues",
                 "grad_min_games", "grad_ci_level", "grad_min_venues", "grad_min_leagues", "grad_max_league_share"):
         assert from_example[key] == defaults[key], key
+
+
+def test_env_example_has_no_removed_scheduler_variables():
+    from clv_engine.config import REMOVED_ENV
+    keys = {line.partition("=")[0] for _, line in value_lines(ROOT / ".env.example")}
+    assert not keys & set(REMOVED_ENV) and "ODDS_API_DAILY_BUDGET" not in keys
+    assert {"ODDS_API_MONTHLY_BUDGET", "ODDS_API_HARD_CAP"} <= keys

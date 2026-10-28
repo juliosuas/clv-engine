@@ -85,29 +85,35 @@ Note: The Odds API has **no Caliente** and only **Codere Italy (`codere_it`)**, 
 
 ## Pinnacle close capture and the Odds API credit budget
 
-One `/odds` call per sport returns every event, so the scheduler works per league. Cost per call = markets × regions
-(h2h × 1 region for ≤10 bookmakers; more `SOFT_BOOKS` can add a region). Cadence depends on the time to the nearest kickoff:
+Free plan = **500 credits per calendar month**; `ODDS_API_MONTHLY_BUDGET=500` is the plan, `ODDS_API_HARD_CAP=450` is the
+local ceiling (50 credits of margin). One `/odds` call per sport returns every event, so polls are grouped **per sport and kickoff
+round**: kickoffs of a sport within `CLOSE_WINDOW_MAX_MINUTES - CLOSE_WINDOW_MIN_MINUTES` (4 min) share one round. Requests are
+`markets=h2h`, `regions=eu`, `bookmakers=pinnacle` only (`bookmakers` overrides `regions`; 1 market × 1 region = 1 credit;
+empty responses, `/sports` and `/events` are free). With `SOFT_ENTRIES=1` the `SOFT_BOOKS` ride along (still 1 credit for ≤10 books).
 
-| tier | when | interval (env) |
+| poll | when | credits |
 |---|---|---|
-| close | within `CLOSE_CAPTURE_MINUTES` (30) of a kickoff that has a pending entry | `SHARP_CLOSE_POLL_SECONDS` (120) |
-| near | within `NEAR_WINDOW_MINUTES` (180) | `SHARP_NEAR_POLL_SECONDS` (600) |
-| far | within `IDLE_AFTER_MINUTES` (720) | `SHARP_POLL_SECONDS` (900) |
-| idle | otherwise | `SHARP_IDLE_POLL_SECONDS` (3600) |
+| final close | the last engine cycle inside T-5..T-1 min of a round that has pending entries | 1 per sport and round |
+| early close | start of the window, only with `CLOSE_POLLS_PER_ROUND=2` | 1 |
+| entry | `ENTRY_POLL_LEAD_MINUTES` (25) before the round's first kickoff (fresh lines until T-5 with `MAX_SHARP_AGE_MINUTES=20`) | 1 |
 
-- The effective interval is never shorter than `POLL_SECONDS`. `python3 -m clv_engine quota` prints the estimated
-  credits/day and /30 days for the configured leagues, plus today's local usage (no network).
-- **Budget:** `ODDS_API_DAILY_BUDGET` (default 1000, a planning number, **not** a verified plan limit) is a hard cap per UTC day,
-  persisted in the ledger (`api_usage`). Non-close polls stop at `(1 - ODDS_API_CLOSE_RESERVE)` of it so the close window keeps
-  credits. The `x-requests-remaining` / `x-requests-used` / `x-requests-last` response headers are read on every call; at or
-  below `ODDS_API_MIN_REMAINING` only close polls run, at 0 nothing runs. When polls are skipped the engine keeps using cached
-  lines, but Pinnacle data older than `MAX_SHARP_AGE_MINUTES` is discarded for entries and closes.
-- A Pinnacle close only counts if it was actually fetched within `CLOSE_MAX_AGE_MINUTES` of kickoff (`closing.captured_at` is the
-  fetch time). Every entry whose close could not be captured gets one `WARNING` line with the reason
-  (`Pinnacle close NOT captured: entry #… | reason`).
-- **Unverified:** the real plan size and reset period of your Odds API key. Set `ODDS_API_DAILY_BUDGET` from what the dashboard
-  shows. Earlier README text that said "within the 100k plan" was an assumption and has been removed.
-- Historical backfill (`ODDS_API_HISTORICAL=1`) costs 10× per call, is budgeted the same way and tried once per entry.
+- Kickoff times come for free from the venue games (Polymarket/Kalshi), so no discovery poll is spent. Nothing is polled outside
+  these slots and there is no historical call unless `ODDS_API_HISTORICAL=1`.
+- **Priority:** final close > early close > entry. Final closes are stopped only by the hard cap or the provider's `x-requests-remaining`
+  reaching 0; optional polls follow a daily allowance (`(spendable + spent today) / days left in the month`, at most
+  `ODDS_API_DAILY_BURST` × the even daily share) and must leave the credits already owed to final closes of pending rounds.
+  Entry polls may only use `1 - ODDS_API_CLOSE_RESERVE` of the allowance and stop below `ODDS_API_MIN_REMAINING`.
+- **Calendar month, headers are the truth:** the local ledger counts per UTC calendar month (`api_usage`); every response's
+  `x-requests-used/remaining/last` replaces the local estimate. Headers from an earlier month are ignored after the month changes
+  (unverified: the provider's exact reset instant; check the dashboard).
+- **Degradation:** if a final close poll cannot be paid, one `WARNING` names the sport and round, a `missed_closes` row is stored and
+  the entries of that round become `no_close` (excluded from CLV stats, never invented). `python3 -m clv_engine quota` prints the
+  plan estimate (credits/day and /month for the configured leagues, no network), this month's usage and lost close rounds.
+- A Pinnacle close only counts if fetched within `CLOSE_MAX_AGE_MINUTES` of kickoff (`closing.captured_at` = fetch time). Every entry
+  whose close was not captured gets one `WARNING` (`Pinnacle close NOT captured: entry #… | reason`).
+- Removed in this version (ignored, a WARNING names any still set): `ODDS_API_DAILY_BUDGET`, `SHARP_*POLL_SECONDS`,
+  `NEAR_WINDOW_MINUTES`, `IDLE_AFTER_MINUTES`, `CLOSE_CAPTURE_MINUTES`, `CLOSE_DENSE_PENDING_ONLY`, `PLAN_KICKOFF_CLUSTERS`.
+- Historical backfill (`ODDS_API_HISTORICAL=1`) costs 10× per call and uses the same budget guard; off by default (free plan).
 
 ## Entry filters (defaults, all env-configurable)
 
@@ -123,13 +129,15 @@ One `/odds` call per sport returns every event, so the scheduler works per leagu
 
 ## Edge vs venue-CLV audit
 
-`python3 -m clv_engine audit [--dump rows.json]` decomposes why the declared entry edge (reference / all-in price - 1, fee
+`python3 -m clv_engine audit [--dump rows.json] [--quotes quotes.json]` decomposes why the declared entry edge (reference / all-in price - 1, fee
 included) can be positive while `venue_clv_pct` (own venue's close mid / avg price - 1, no fee) is negative: the gap is exactly
 (reference -> close price move) x (fee factor). `venue_clv_pct` is own-venue drift, not CLV. Fixes on this branch: a mid needs
 both sides of the book (`OutcomeQuote.mid2`) for references and closes; equivalent bets in a two-way market (YES A == NO B)
 count as one entry; opposite bets on a game are not opened (`ALLOW_HEDGED_ENTRIES=0`). `no_close` is a `clv_status` for entries
 whose Pinnacle close could not be captured; they are excluded from the measured sample. Graduation counts distinct games
-(`GRAD_MIN_GAMES`, `GRAD_MIN_GROUP_GAMES`, `GRAD_DEADLINE`); paper fills are always taker. See `docs/GRADUATION.md`.
+(`GRAD_MIN_GAMES`, `GRAD_MIN_GROUP_GAMES`, `GRAD_DEADLINE`); paper fills are always taker.
+With `--quotes` (or from the ledger's `quotes` history) the audit also splits the spread: reference vs own-book mid and mid vs ask, using the quote
+tick nearest to the entry (**approximation**: the book at the entry's own instant is not stored; NO side = 1 − the YES book). See `docs/GRADUATION.md`.
 
 ## Status and graduation
 
@@ -156,7 +164,7 @@ python3 -m clv_engine report entries            # raw entries as JSON lines
 python3 -m clv_engine settle                    # finalize CLV + settle finished games now
 python3 -m clv_engine status                    # measured sample, mean CLV + CI, projection to 300
 python3 -m clv_engine graduation                # proposed paper->real gate (reporting only)
-python3 -m clv_engine quota                     # Odds API credit plan + today's usage
+python3 -m clv_engine quota                     # Odds API credit plan + this month's usage
 ```
 
 Python ≥ 3.11, standard library only (`tzdata` optional, for report time zones on minimal images).
@@ -246,7 +254,7 @@ clv_engine/
   venues/kalshi.py       public events + orderbooks + series fee multiplier (GET only)
   sharp/                 SharpSource interface; none | theoddsapi (Pinnacle + soft books)
   devig.py fees.py orderbook.py teams.py (+ data/team_aliases.json) matching.py
-  sharp/quota.py         credit tiers, budget tracker, plan estimate
+  sharp/quota.py         kickoff rounds, monthly budget tracker, plan estimate
   graduation.py          status + graduation gate (reporting only)
   strategy.py arb.py ledger.py alerts.py engine.py report.py cli.py config.py
 tests/                   pytest, recorded fixtures, no network

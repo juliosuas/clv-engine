@@ -162,3 +162,48 @@ def test_audit_cli_reads_a_json_dump(tmp_path, capsys):
     f.write_text(json.dumps([row, {**row, "game_key": "g2"}, {**row, "game_key": "g3"}]))
     assert main(["--env-file", "", "audit", "--dump", str(f)]) == 0
     assert "EDGE vs VENUE-CLV AUDIT" in capsys.readouterr().out
+
+
+# ---- spread split from stored quote ticks (APPROXIMATION: tick nearest to the entry, not the fill instant) -----------------------
+def _audit_row(i, side="yes", ask=0.40, fair=0.46, created="2026-10-21T00:00:00Z", **kw):
+    r = dict(id=i, venue="polymarket", game_key="g1", outcome_key="a", side=side, created_at=created, best_ask=ask, avg_price=ask, effective_price=ask * 1.02,
+             fair_entry=fair, edge_entry=fair / (ask * 1.02) - 1, venue_mid_close=0.41, ref_source="pinnacle")
+    r.update(kw)
+    return r
+
+
+def _tick(ts, bid, ask, outcome="a", game="g1"):
+    return dict(ts=ts, game_key=game, source="polymarket", outcome_key=outcome, best_bid=bid, best_ask=ask)
+
+
+def test_spread_split_uses_the_nearest_tick_and_separates_ask_from_mid():
+    rows = [_audit_row(1)]
+    quotes = [_tick("2026-10-20T23:50:00Z", 0.30, 0.45), _tick("2026-10-21T00:01:00Z", 0.36, 0.40), _tick("2026-10-21T00:20:00Z", 0.10, 0.90)]
+    d = decompose(rows, quotes)
+    e = d["entry_spread"]
+    assert e["n"] == 1 and e["mean_spread_abs"] == pytest.approx(0.04)
+    assert e["ref_vs_mid"] == pytest.approx(0.46 / 0.38 - 1)  # reference vs own-book mid (0.38), not vs the ask
+    assert e["mid_vs_ask"] == pytest.approx(0.38 / 0.40 - 1)  # the half-spread the taker pays
+    assert (1 + e["ref_vs_mid"]) * (1 + e["mid_vs_ask"]) - 1 == pytest.approx(d["means"]["raw_edge_at_ask"])  # the two parts multiply to the audit's raw edge
+    assert "APPROXIMATION" in format_decomposition(d)
+
+
+def test_no_side_book_is_derived_from_the_opposite_yes_side():
+    # YES book 0.55/0.60 -> NO book bid 0.40 / ask 0.45; the entry paid 0.45
+    rows = [_audit_row(1, side="no", ask=0.45, fair=0.50)]
+    d = decompose(rows, [_tick("2026-10-21T00:00:30Z", 0.55, 0.60)])
+    e = d["entry_spread"]
+    assert e["n"] == 1 and e["mean_spread_abs"] == pytest.approx(0.05)
+    assert e["mid_vs_ask"] == pytest.approx(0.425 / 0.45 - 1) and e["ref_vs_mid"] == pytest.approx(0.50 / 0.425 - 1)
+
+
+def test_inconsistent_or_missing_ticks_are_listed_and_excluded_not_guessed():
+    rows = [_audit_row(1), _audit_row(2, created="2026-10-21T05:00:00Z"), _audit_row(3, outcome_key="zzz")]
+    d = decompose(rows, [_tick("2026-10-21T00:00:10Z", 0.30, 0.50), _tick("2026-10-21T05:00:00Z", 0.36, 0.40)])
+    e = d["entry_spread"]
+    assert e["n"] == 1  # only entry 2: its tick ask equals the stored best_ask
+    assert [x[0] for x in e["tick_inconsistent"]] == [1] and e["no_tick"] == [3]
+
+
+def test_decompose_without_quotes_has_no_spread_block():
+    assert "entry_spread" not in decompose([_audit_row(1)])

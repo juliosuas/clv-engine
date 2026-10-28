@@ -6,9 +6,16 @@ environment; never commit them. See .env.example for every knob.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+# Settings of the old per-day, tier-based Odds API scheduler. They are ignored now (a warning names the ones still set).
+REMOVED_ENV = ("ODDS_API_DAILY_BUDGET", "SHARP_POLL_SECONDS", "SHARP_CLOSE_POLL_SECONDS", "SHARP_NEAR_POLL_SECONDS", "SHARP_IDLE_POLL_SECONDS",
+               "CLOSE_CAPTURE_MINUTES", "NEAR_WINDOW_MINUTES", "IDLE_AFTER_MINUTES", "CLOSE_DENSE_PENDING_ONLY", "PLAN_KICKOFF_CLUSTERS")
 
 
 def load_dotenv(path: str | os.PathLike = ".env") -> None:
@@ -64,23 +71,24 @@ class Settings:
     sharp_book: str = "pinnacle"
     soft_books: list[str] = field(default_factory=lambda: ["codere_it", "betsson", "williamhill", "unibet_eu"])
     devig_method: str = "power"
-    sharp_poll_seconds: int = 900
-    sharp_close_poll_seconds: int = 120
-    close_capture_minutes: int = 30
     odds_api_historical: bool = False
-    # --- Odds API credit scheduler (see clv_engine/sharp/quota.py) ---
-    # Cadence tiers by time to the nearest relevant kickoff (seconds between /odds calls per league).
-    sharp_near_poll_seconds: int = 600
-    sharp_idle_poll_seconds: int = 3600
-    near_window_minutes: int = 180
-    idle_after_minutes: int = 720
-    # 1 = poll densely only for games that have pending (unclosed) entries; 0 = every game in the window.
-    close_dense_pending_only: bool = True
-    # UNVERIFIED planning number, not a plan limit: set it to your own plan's quota / days in the period.
-    odds_api_daily_budget: int = 1000
-    # Share of the daily budget kept for close-window polls (they may use 100%, other polls only the rest).
-    odds_api_close_reserve: float = 0.30
-    # Hard floor on the provider-reported x-requests-remaining: below it only close-window polls run.
+    odds_api_regions: str = "eu"
+    # --- Odds API credit scheduler (see clv_engine/sharp/quota.py): free plan = 500 credits per CALENDAR MONTH ---
+    # Plan size and the local hard cap (never spend past it; the provider's x-requests-* headers are the truth for used/remaining).
+    odds_api_monthly_budget: int = 500
+    odds_api_hard_cap: int = 450
+    # The daily allowance is the remaining spendable credits / calendar days left, capped at this multiple of the even share of the hard cap.
+    odds_api_daily_burst: float = 3.0
+    # Close window per kickoff round, in minutes before the round's first kickoff: polls happen between T-MAX and T-MIN.
+    close_window_max_minutes: int = 5
+    close_window_min_minutes: int = 1
+    # 1 = a single (final) close poll per round; 2 = an early one at the start of the window plus the final one.
+    close_polls_per_round: int = 1
+    # One entry poll per round this many minutes before its first kickoff (must be >= MAX_SHARP_AGE_MINUTES + CLOSE_WINDOW_MAX_MINUTES to cover entries).
+    entry_poll_lead_minutes: int = 25
+    # Share of the daily allowance reserved for close polls (entry polls may use only the rest).
+    odds_api_close_reserve: float = 0.50
+    # Hard floor on the provider-reported x-requests-remaining: below it only close polls run.
     odds_api_min_remaining: int = 100
     # Assumed credits per /odds call; 0 = derive (1 market x ceil(books/10) regions); replaced by x-requests-last when sent.
     odds_api_credits_per_call: int = 0
@@ -88,8 +96,8 @@ class Settings:
     max_sharp_age_minutes: float = 20
     # A Pinnacle close only counts if sampled this close to kickoff (0 disables the check).
     close_max_age_minutes: float = 20
-    # Planning-only assumption for the credit estimate: distinct kickoff slots per league per day.
-    plan_kickoff_clusters: int = 3
+    # Planning-only assumption for the credit estimate: kickoff rounds per league per day.
+    plan_rounds_per_league_day: float = 2.0
 
     entry_reference: str = "auto"  # auto | sharp | consensus
     # Entry gate (proposal, Julio to approve): edge vs Pinnacle no-vig fair, AFTER fees, >= 5%.
@@ -108,7 +116,8 @@ class Settings:
     entry_sides: list[str] = field(default_factory=lambda: ["yes", "no"])
     min_price: float = 0.05  # ignore deep longshots / near-certainties (noise, tiny payout)
     max_price: float = 0.95
-    soft_entries: bool = True
+    # Soft-book paper entries need soft books in the /odds request; the default Pinnacle-only poll (1 credit) cannot feed them.
+    soft_entries: bool = False
     soft_edge: float = 0.03
 
     kalshi_fee_rounding: str = "cent"
@@ -150,6 +159,10 @@ class Settings:
         if dotenv:
             load_dotenv(dotenv)
         d = cls()
+        gone = sorted(k for k in REMOVED_ENV if os.environ.get(k))
+        if gone:
+            log.warning("Ignoring removed setting(s) %s: the Odds API scheduler is now monthly and round-based "
+                        "(ODDS_API_MONTHLY_BUDGET / ODDS_API_HARD_CAP / CLOSE_WINDOW_* / ENTRY_POLL_LEAD_MINUTES; see README \"Credit budget\")", ", ".join(gone))
         return cls(
             db_path=os.environ.get("DB_PATH", d.db_path),
             leagues=_list("LEAGUES", ",".join(d.leagues)),
@@ -163,22 +176,21 @@ class Settings:
             sharp_book=os.environ.get("SHARP_BOOK", d.sharp_book),
             soft_books=_list("SOFT_BOOKS", ",".join(d.soft_books)),
             devig_method=os.environ.get("DEVIG_METHOD", d.devig_method),
-            sharp_poll_seconds=_i("SHARP_POLL_SECONDS", d.sharp_poll_seconds),
-            sharp_close_poll_seconds=_i("SHARP_CLOSE_POLL_SECONDS", d.sharp_close_poll_seconds),
-            close_capture_minutes=_i("CLOSE_CAPTURE_MINUTES", d.close_capture_minutes),
             odds_api_historical=_b("ODDS_API_HISTORICAL", d.odds_api_historical),
-            sharp_near_poll_seconds=_i("SHARP_NEAR_POLL_SECONDS", d.sharp_near_poll_seconds),
-            sharp_idle_poll_seconds=_i("SHARP_IDLE_POLL_SECONDS", d.sharp_idle_poll_seconds),
-            near_window_minutes=_i("NEAR_WINDOW_MINUTES", d.near_window_minutes),
-            idle_after_minutes=_i("IDLE_AFTER_MINUTES", d.idle_after_minutes),
-            close_dense_pending_only=_b("CLOSE_DENSE_PENDING_ONLY", d.close_dense_pending_only),
-            odds_api_daily_budget=_i("ODDS_API_DAILY_BUDGET", d.odds_api_daily_budget),
+            odds_api_regions=os.environ.get("ODDS_API_REGIONS", d.odds_api_regions).strip().lower() or d.odds_api_regions,
+            odds_api_monthly_budget=_i("ODDS_API_MONTHLY_BUDGET", d.odds_api_monthly_budget),
+            odds_api_hard_cap=_i("ODDS_API_HARD_CAP", d.odds_api_hard_cap),
+            odds_api_daily_burst=_f("ODDS_API_DAILY_BURST", d.odds_api_daily_burst),
+            close_window_max_minutes=_i("CLOSE_WINDOW_MAX_MINUTES", d.close_window_max_minutes),
+            close_window_min_minutes=_i("CLOSE_WINDOW_MIN_MINUTES", d.close_window_min_minutes),
+            close_polls_per_round=_i("CLOSE_POLLS_PER_ROUND", d.close_polls_per_round),
+            entry_poll_lead_minutes=_i("ENTRY_POLL_LEAD_MINUTES", d.entry_poll_lead_minutes),
             odds_api_close_reserve=_f("ODDS_API_CLOSE_RESERVE", d.odds_api_close_reserve),
             odds_api_min_remaining=_i("ODDS_API_MIN_REMAINING", d.odds_api_min_remaining),
             odds_api_credits_per_call=_i("ODDS_API_CREDITS_PER_CALL", d.odds_api_credits_per_call),
             max_sharp_age_minutes=_f("MAX_SHARP_AGE_MINUTES", d.max_sharp_age_minutes),
             close_max_age_minutes=_f("CLOSE_MAX_AGE_MINUTES", d.close_max_age_minutes),
-            plan_kickoff_clusters=_i("PLAN_KICKOFF_CLUSTERS", d.plan_kickoff_clusters),
+            plan_rounds_per_league_day=_f("PLAN_ROUNDS_PER_LEAGUE_DAY", d.plan_rounds_per_league_day),
             entry_reference=os.environ.get("ENTRY_REFERENCE", d.entry_reference).strip().lower(),
             min_edge=_f("MIN_EDGE", d.min_edge),
             require_pinnacle_ref=_b("REQUIRE_PINNACLE_REF", d.require_pinnacle_ref),

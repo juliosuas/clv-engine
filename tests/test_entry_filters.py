@@ -106,6 +106,7 @@ def test_excluded_league_or_venue_creates_no_entries(league, venue, kw):
 
 # ---- engine-level: exclusions keep existing data, polling skips excluded leagues -----------------------------------------
 def engine(http, ledger=None, **kw):
+    kw = {"soft_entries": True, "entry_poll_lead_minutes": 100_000, **kw}  # cycles run far before kickoff: poll as soon as a round is known
     s = Settings(db_path=":memory:", leagues=["nba", "nfl", "ucl"], alert_sinks=[], snapshot_min_seconds=0, sharp_source="theoddsapi",
                  odds_api_key="test-key", min_depth_usd=0, **kw)
     ledger = ledger or Ledger(":memory:")
@@ -182,8 +183,10 @@ def test_nfl_recorded_fixtures_match_cross_venue_and_pinnacle(http):
     assert all(set(g.teams) <= {"car", "gb", "bal", "buf"} for g in pm + ks)
     src = make_sharp_source(Settings(), http)
     assert not src.available
-    s = Settings(odds_api_key="k", sharp_source="theoddsapi")
-    sharp = make_sharp_source(s, http).fetch(lg, now)
+    s = Settings(odds_api_key="k", sharp_source="theoddsapi", entry_poll_lead_minutes=100_000)
+    src = make_sharp_source(s, http)
+    src.set_schedule("nfl", [g.start for g in pm + ks])
+    sharp = src.fetch(lg, now)
     games = match_games("nfl", False, pm + ks, sharp, 30)
     cross = {tuple(sorted(g.teams)): g for g in games if len(g.venues) == 2 and g.sharp and g.sharp.sharp}
     assert set(cross) == {("car", "gb"), ("bal", "buf")}

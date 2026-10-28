@@ -270,9 +270,10 @@ def status(ledger: Ledger, settings, now: datetime | None = None) -> dict[str, A
         out["projection"] = (f"~{out['days_to_target']:.0f} days to {settings.grad_min_games} measured games at the observed rate "
                              "(naive: assumes the rate holds)")
     out["deadline_warning"] = _deadline_warning(out, settings, now)
-    usage = ledger.usage(now.strftime("%Y-%m-%d"))
-    out["quota_today"] = {"credits": usage["credits"], "requests": usage["requests"], "skipped": usage["skipped"],
-                          "remaining": usage["remaining"], "budget": settings.odds_api_daily_budget}
+    usage = ledger.month_usage(now.strftime("%Y-%m"))
+    out["quota_month"] = {"credits": usage["credits"], "requests": usage["requests"], "skipped": usage["skipped"],
+                          "remaining": usage["remaining"], "used": usage["used"], "budget": settings.odds_api_monthly_budget,
+                          "hard_cap": settings.odds_api_hard_cap, "missed_closes": len(ledger.missed_closes())}
     return out
 
 
@@ -285,7 +286,7 @@ def _ci_txt(ci: tuple[float, float] | None) -> str:
 
 
 def format_status(st: dict[str, Any]) -> str:
-    q, rt = st["quota_today"], st["retro"]
+    q, rt = st["quota_month"], st["retro"]
     lvl = f"{st['ci_level']:.0%}"
     beat = "n/a" if st["beat_close"] is None else f"{st['beat_close']:.1%}"
     tstat = "n/a" if st["ci"]["t_stat"] is None else f"{st['ci']['t_stat']:.2f}"
@@ -309,8 +310,9 @@ def format_status(st: dict[str, Any]) -> str:
     ]
     if st["deadline_warning"]:
         lines.append(st["deadline_warning"])
-    lines.append(f"Odds API credits today (local count, UTC day): {q['credits']:.0f}/{q['budget']} in {q['requests']} calls, {q['skipped']} polls skipped by budget; "
-                 f"last x-requests-remaining: {'n/a' if q['remaining'] is None else q['remaining']}")
+    lines.append(f"Odds API credits this month (local count, UTC month): {q['credits']:.0f} in {q['requests']} calls (hard cap {q['hard_cap']} of {q['budget']}), "
+                 f"{q['skipped']} polls skipped by budget, {q['missed_closes']} close round(s) lost; "
+                 f"last x-requests-used/remaining: {'n/a' if q['used'] is None else q['used']}/{'n/a' if q['remaining'] is None else q['remaining']}")
     return "\n".join(lines)
 
 

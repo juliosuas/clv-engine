@@ -16,7 +16,9 @@ def settings(**kw):
     # Legacy-permissive baseline: these tests predate the stricter defaults (5% edge, depth, Pinnacle-only,
     # UCL/Kalshi excluded); the new defaults are exercised in test_entry_filters.py.
     s = Settings(db_path=":memory:", leagues=["ligamx", "nba"], alert_sinks=[], snapshot_min_seconds=0,
-                 min_edge=0.02, require_pinnacle_ref=False, min_depth_usd=0, excluded_leagues=[], excluded_venues=[])
+                 min_edge=0.02, require_pinnacle_ref=False, min_depth_usd=0, excluded_leagues=[], excluded_venues=[],
+                 soft_entries=True,  # legacy tests exercise soft-book entries; the production default is Pinnacle-only polls
+                 entry_poll_lead_minutes=100_000)  # these tests run cycles a day before kickoff: poll as soon as a round is known
     for k, v in kw.items():
         setattr(s, k, v)
     return s

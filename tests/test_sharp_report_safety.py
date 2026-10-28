@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -27,8 +28,9 @@ def test_parse_odds_api_three_way_and_devig():
 
 
 def test_odds_api_caches_between_polls(http, now):
-    s = Settings(sharp_poll_seconds=900)
+    s = Settings(entry_poll_lead_minutes=100_000)
     src = TheOddsApiSource(http, "secret", s)
+    src.set_schedule("nba", [now + timedelta(hours=30)])
     src.fetch(LEAGUES["nba"], now)
     src.fetch(LEAGUES["nba"], now)
     assert sum(1 for u, _ in http.calls if "the-odds-api" in u) == 1

@@ -105,7 +105,7 @@ def test_status_empty_db_is_insufficient_data():
     assert st["sample_n"] == 0 and st["mean_clv"] is None and st["ci"]["bootstrap"] is None and st["entries_per_day"] is None
     assert st["days_to_target"] is None and "insufficient data" in st["projection"]
     txt = format_status(st)
-    assert "n/a" in txt and "insufficient data" in txt and "Odds API credits today" in txt
+    assert "n/a" in txt and "insufficient data" in txt and "Odds API credits this month" in txt
 
 
 def test_status_rate_needs_enough_entries_and_days():
@@ -329,7 +329,7 @@ def test_both_devig_closes_are_captured_by_the_engine(http):
 
     s = qsettings(max_sharp_age_minutes=60, leagues=["ligamx"], min_edge=0.05)
     eng = make(http, s)
-    eng.cycle(LMX_KICK - mins(50))
+    eng.cycle(LMX_KICK - mins(24))  # the round's entry poll
     gk = eng.ledger.entries()[0]["game_key"]
     p = eng.ledger.closing(gk, "necaxa", "pinnacle_power")
     m = eng.ledger.closing(gk, "necaxa", "pinnacle_multiplicative")

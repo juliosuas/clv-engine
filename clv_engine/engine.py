@@ -76,6 +76,12 @@ class Engine:
         sharp_games = []
         try:
             self.sharp.set_pending(league.key, [k for k in self.ledger.pending_kickoffs(league.key) if k >= now])
+            # free kickoff data from the venues lets the credit-limited sharp source plan its polls per kickoff round
+            # (Polymarket's gameStartTime is exact; Kalshi's start is derived, so a Kalshi time near a Polymarket one is the same game)
+            pm_starts = [vg.start for vg in venue_games if vg.start and vg.start >= now and vg.venue == "polymarket"]
+            other = [vg.start for vg in venue_games if vg.start and vg.start >= now and vg.venue != "polymarket"
+                     and not any(abs((vg.start - p).total_seconds()) <= 3 * 3600 for p in pm_starts)]
+            self.sharp.set_schedule(league.key, pm_starts + other)
             fetched = [g for g in self.sharp.fetch(league, now) if g.start and now - timedelta(hours=3) <= g.start <= now + timedelta(hours=self.s.lookahead_hours)]
             self._sharp_ts[league.key] = self.sharp.fetched_at(league.key)
             sharp_games = self._drop_stale_lines(league, fetched, now)
@@ -296,6 +302,10 @@ class Engine:
             return None, f"league {e['league']} is not in LEAGUES (not polled)"
         if not league.odds_api_sport:
             return None, f"league {league.key} has no Odds API sport key"
+        miss = self.ledger.missed_close_for(e["league"], start)
+        if miss:
+            return None, (f"Odds API close poll for the {miss['round_start']} kickoff round was not made ({miss['reason']}); "
+                          "budget degraded: this close is lost")
         skipped = getattr(getattr(self.sharp, "quota", None), "usage", None)
         skipped_n = skipped(now)["skipped"] if skipped else 0
         if skipped_n:
@@ -323,15 +333,17 @@ class Engine:
             else:
                 # pending_sharp while a late backfill is still possible; 'no_close' (explicitly marked, excluded from the
                 # measured sample, never silently dropped) once SETTLE_AFTER_HOURS have passed after kickoff
-                given_up = now >= start + timedelta(hours=self.s.settle_after_hours)
+                # a close poll that the credit budget could not afford is lost for good (no backfill without ODDS_API_HISTORICAL)
+                lost = (not self.s.odds_api_historical) and self.ledger.missed_close_for(e["league"], start) is not None
+                given_up = lost or now >= start + timedelta(hours=self.s.settle_after_hours)
                 fields["clv_status"] = "no_close" if given_up else "pending_sharp"
                 if e["id"] not in self._missing_logged:
                     self._missing_logged.add(e["id"])
                     log.warning("Pinnacle close NOT captured: entry #%s %s %s %s %s | %s | kickoff %s | %s",
                                 e["id"], e["league"], e["venue"], e["side"].upper(), e["outcome_label"], e["game_label"], e["start_time"], why)
                 if given_up and e["clv_status"] != "no_close":
-                    log.warning("entry #%s marked no_close (no valid Pinnacle close %sh after kickoff): excluded from CLV stats",
-                                e["id"], self.s.settle_after_hours)
+                    log.warning("entry #%s marked no_close (%s): excluded from CLV stats", e["id"],
+                                "close poll lost to the Odds API credit budget" if lost else f"no valid Pinnacle close {self.s.settle_after_hours}h after kickoff")
             self.ledger.update_entry(e["id"], **fields)
             n += 1
         return n
@@ -381,8 +393,9 @@ class Engine:
         quota = getattr(self.sharp, "quota", None)
         if quota is not None:
             u = quota.usage(now)
-            note += (f"; credits_today={u['credits']:.0f}/{self.s.odds_api_daily_budget} calls={u['requests']} skipped={u['skipped']}"
-                     f" remaining={quota.last_remaining if quota.last_remaining is not None else 'n/a'}")
+            rem = quota.remaining_now(now)
+            note += (f"; credits_today={u['credits']:.0f} month_used={quota.used_this_month(now):.0f}/{self.s.odds_api_hard_cap} (budget {self.s.odds_api_monthly_budget}) "
+                     f"calls={u['requests']} skipped={u['skipped']} remaining={rem if rem is not None else 'n/a'}")
         self.ledger.add_run(seconds=round(secs, 2), games=stats.games, venue_games=stats.venue_games, sharp_games=stats.sharp_games,
                             entries=stats.entries, arbs=stats.arbs, errors=stats.errors, note=note)
         log.info("cycle %.1fs games=%d venue_games=%d cross=%d sharp=%d entries=%d arbs=%d errors=%d %s",

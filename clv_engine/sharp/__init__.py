@@ -8,7 +8,7 @@ from .theoddsapi import TheOddsApiSource
 
 def make_sharp_source(settings, http, ledger=None) -> SharpSource:
     src = (settings.sharp_source or "none").lower()
-    if src == "theoddsapi":
+    if src in ("theoddsapi", "pinnacle"):  # "pinnacle" = alias: Pinnacle is what The Odds API feed provides here
         if not settings.odds_api_key:
             return NoSharpSource(reason="SHARP_SOURCE=theoddsapi but ODDS_API_KEY is not set")
         return TheOddsApiSource(http, settings.odds_api_key, settings, ledger)

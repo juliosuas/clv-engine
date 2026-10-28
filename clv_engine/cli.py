@@ -117,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
     gr.add_argument("--json", action="store_true")
     au = sub.add_parser("audit", help="why edge and venue CLV disagree: decomposition of the gap (read-only)")
     au.add_argument("--dump", default=None, help="read entries from a JSON dump (list of rows) instead of the ledger")
+    au.add_argument("--quotes", default=None, help="JSON dump of quote ticks (ts, game_key, source, outcome_key, best_bid, best_ask) to split the entry spread; "
+                                                  "with the ledger the stored quotes table is used")
     sub.add_parser("quota", help="Odds API credit plan estimate and today's local usage (no network)")
     sub.add_parser("settle", help="finalize CLV and settle finished games")
     sub.add_parser("init-db", help="create the SQLite schema")
@@ -132,11 +134,16 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_test_alert(settings)
     if args.cmd == "audit" and args.dump:
         with open(args.dump, encoding="utf-8") as fh:
-            print(format_decomposition(decompose(json.load(fh))))
+            rows = json.load(fh)
+        quotes = None
+        if args.quotes:
+            with open(args.quotes, encoding="utf-8") as fh:
+                quotes = json.load(fh)
+        print(format_decomposition(decompose(rows, quotes)))
         return 0
     ledger = Ledger(settings.db_path)
     if args.cmd == "audit":
-        print(format_decomposition(decompose(ledger.entries())))
+        print(format_decomposition(decompose(ledger.entries(), ledger.all_quotes())))
         return 0
     if args.cmd == "init-db":
         print(f"ledger ready at {settings.db_path}")
@@ -152,9 +159,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "quota":
         active = [lg for lg in get_leagues(settings.leagues) if lg.key not in settings.excluded_leagues]
         print(format_plan(settings, len(active)))
-        u = ledger.usage(utc_now().strftime("%Y-%m-%d"))
-        print(f"today (UTC, local count): {u['credits']:.0f}/{settings.odds_api_daily_budget} credits, {u['requests']} calls, {u['skipped']} skipped, "
-              f"last x-requests-remaining={u['remaining']}")
+        now = utc_now()
+        u, m = ledger.usage(now.strftime("%Y-%m-%d")), ledger.month_usage(now.strftime("%Y-%m"))
+        print(f"today (UTC, local count): {u['credits']:.0f} credits, {u['requests']} calls, {u['skipped']} skipped")
+        print(f"this month (UTC {m['month']}, local count): {m['credits']:.0f} credits in {m['requests']} calls, {m['skipped']} skipped; "
+              f"hard cap {settings.odds_api_hard_cap} of {settings.odds_api_monthly_budget}; last x-requests-used={m['used']} remaining={m['remaining']}")
+        for r in ledger.missed_closes():
+            print(f"missed close poll (no_close): {r['league']} round {r['round_start']} | {r['reason']}")
         return 0
     if args.cmd == "report":
         if args.kind == "summary":

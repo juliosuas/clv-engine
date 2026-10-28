@@ -25,6 +25,9 @@ class SharpSource:
     def set_pending(self, league_key: str, kickoffs: list[datetime]) -> None:
         """Kickoffs of games that still have entries waiting for a Pinnacle close."""
 
+    def set_schedule(self, league_key: str, kickoffs: list[datetime]) -> None:
+        """Upcoming kickoffs seen on the venues (free data) so a credit-limited source can group them into rounds."""
+
     def fetched_at(self, league_key: str) -> datetime | None:
         """When the data last returned by fetch() was actually sampled from the provider."""
         return None

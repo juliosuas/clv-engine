@@ -74,7 +74,7 @@ code (wallet/keys/orders), which does not exist here and must not be added to th
 
 ## 4. Unverified inputs
 
-- The Odds API plan size and quota reset period are unverified; `ODDS_API_DAILY_BUDGET` is a planning default.
+- The Odds API reset instant is unverified (the scheduler assumes the UTC calendar month and trusts the response headers); the free plan is 500 credits/month with `ODDS_API_HARD_CAP=450` locally.
   Collection speed (entries/day, hence time to 300) depends on it.
 - Any live performance figure quoted by others (e.g. Togi's) is unverified here; this repo only reports what its
   own ledger measured.
